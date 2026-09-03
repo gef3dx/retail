@@ -217,7 +217,3 @@ ehthumbs.db
 # Test artifacts
 *.test
 *.test.log
-
-# Profiles
-profile
-.DS_Store
