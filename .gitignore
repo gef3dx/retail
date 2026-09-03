@@ -106,6 +106,73 @@ out/
 *.bak
 
 # ----------------------------------------
+# macOS
+# ----------------------------------------
+
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.supported
+.DS_Store?
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ----------------------------------------
+# Windows
+# ----------------------------------------
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+*.tmp
+*.temp
+*.cache
+*.log
+*.bak
+*.old
+*.pid
+*.lock
+*.pid.lock
+*.swp
+*.swo
+
+# ----------------------------------------
+# Linux
+# ----------------------------------------
+
+*.swp
+*.swo
+*~
+.directory
+.directory-*
+.bash_history
+.bash_logout
+.bashrc
+.profile
+.lesshst
+.viminfo
+.gnupg/
+*.pid
+*.lock
+*.tmp
+*.temp
+
+# ----------------------------------------
 # Docker
 # ----------------------------------------
 
@@ -114,12 +181,19 @@ docker-data/
 *.pid
 
 # ----------------------------------------
-# OS
+# OS (общие)
 # ----------------------------------------
 
 .DS_Store
 Thumbs.db
 Desktop.ini
+ehthumbs.db
+*.lnk
+*.tmp
+*.temp
+*.bak
+*.old
+*~
 
 # ----------------------------------------
 # Custom
