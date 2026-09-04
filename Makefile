@@ -1,4 +1,4 @@
-.PHONY: up down logs ps migrate dev-be dev-fe check
+.PHONY: up down logs ps migrate dev-be dev-fe check seed
 
 # Поднять только инфру (PG + Redis) — легко для M2
 up:
@@ -29,3 +29,11 @@ dev-fe:
 check:
 	cd backend && go vet ./... && go build ./...
 	docker compose config -q && echo "compose OK"
+
+# Миграции (нужен DATABASE_URL, см. .env.example)
+migrate:
+	cd backend && DATABASE_URL=$${DATABASE_URL:-postgres://retail:retail@localhost:5432/retail?sslmode=disable} go run ./migrations
+
+# Подсказка по сиду админа (создается автоматически при старте backend)
+seed:
+	@echo "Seed выполняется при старте backend: SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD"
