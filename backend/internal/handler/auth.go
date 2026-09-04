@@ -97,6 +97,9 @@ func (a *Auth) Register(c echo.Context) error {
 			INSERT INTO user_roles(user_id, role_id, organization_id) VALUES($1,$2,$3)`, uid, roleID, orgID); err != nil {
 			return err
 		}
+		if err := ensureDefaultPriceTypes(tx, c, orgID); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {

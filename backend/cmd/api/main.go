@@ -48,6 +48,7 @@ func main() {
 		RefreshTTL: time.Duration(cfg.JWTRefreshDays) * 24 * time.Hour}
 	usersH := &handler.Users{Store: st}
 	orgsH := &handler.Orgs{Store: st}
+	catH := &handler.Catalog{Store: st}
 
 	// Публичное
 	e.POST("/api/v1/auth/register", authH.Register)
@@ -65,6 +66,20 @@ func main() {
 	api.POST("/users", usersH.Create, rbac.RequirePermission("user:create"))
 	api.POST("/users/:id/roles", usersH.AssignRole, rbac.RequirePermission("user:role"))
 	api.GET("/audit", orgsH.Audit, rbac.RequirePermission("user:read"))
+
+	// Каталог (этап 3)
+	api.GET("/categories", catH.ListCategories, rbac.RequirePermission("product:read"))
+	api.POST("/categories", catH.CreateCategory, rbac.RequirePermission("product:create"))
+	api.GET("/brands", catH.ListBrands, rbac.RequirePermission("product:read"))
+	api.POST("/brands", catH.CreateBrand, rbac.RequirePermission("product:create"))
+	api.GET("/products", catH.ListProducts, rbac.RequirePermission("product:read"))
+	api.GET("/products/by-code/:code", catH.ByCode, rbac.RequirePermission("product:read"))
+	api.POST("/products", catH.CreateProduct, rbac.RequirePermission("product:create"))
+	api.PATCH("/products/:id", catH.UpdateProduct, rbac.RequirePermission("product:update"))
+	api.DELETE("/products/:id", catH.DeleteProduct, rbac.RequirePermission("product:delete"))
+	api.GET("/products/:id/prices", catH.ListPrices, rbac.RequirePermission("product:read"))
+	api.POST("/products/:id/prices", catH.AddPrice, rbac.RequirePermission("product:update"))
+	api.GET("/price-types", catH.ListPriceTypes, rbac.RequirePermission("product:read"))
 
 	slog.Info("backend starting", "port", cfg.Port, "env", cfg.Env)
 

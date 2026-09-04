@@ -7,6 +7,8 @@ import { Register } from './pages/Register';
 import { Me } from './pages/Me';
 import { Users } from './pages/Users';
 import { Orgs } from './pages/Orgs';
+import { Products } from './pages/Products';
+import { Dicts } from './pages/Dicts';
 import { useAuth } from './store';
 import './index.css';
 
@@ -28,6 +30,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/me" element={<Guard><Me /></Guard>} />
           <Route path="/users" element={<Guard><Users /></Guard>} />
           <Route path="/orgs" element={<Guard><Orgs /></Guard>} />
+          <Route path="/products" element={<Guard><Products /></Guard>} />
+          <Route path="/dicts" element={<Guard><Dicts /></Guard>} />
           <Route path="*" element={<Navigate to="/me" replace />} />
         </Routes>
       </BrowserRouter>
