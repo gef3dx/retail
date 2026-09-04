@@ -11,6 +11,8 @@ import { Products } from './pages/Products';
 import { Dicts } from './pages/Dicts';
 import { Cashier } from './pages/Cashier';
 import { Marking } from './pages/Marking';
+import { Stock } from './pages/Stock';
+import { Orders } from './pages/Orders';
 import { useAuth } from './store';
 import './index.css';
 
@@ -36,6 +38,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/dicts" element={<Guard><Dicts /></Guard>} />
           <Route path="/cashier" element={<Guard><Cashier /></Guard>} />
           <Route path="/marking" element={<Guard><Marking /></Guard>} />
+          <Route path="/stock" element={<Guard><Stock /></Guard>} />
+          <Route path="/orders" element={<Guard><Orders /></Guard>} />
           <Route path="*" element={<Navigate to="/me" replace />} />
         </Routes>
       </BrowserRouter>
