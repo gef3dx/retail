@@ -54,6 +54,7 @@ func main() {
 	catH := &handler.Catalog{Store: st}
 	recH := &handler.Receipt{Store: st}
 	markH := &handler.Marking{Store: st}
+	stockH := &handler.Stock{Store: st}
 
 	// Фоновый воркер ОФД (mock). Интервал через env, по умолчанию 2с для живости кассы.
 	ofdEvery := 2 * time.Second
@@ -101,6 +102,7 @@ func main() {
 	// Касса (этап 4)
 	api.GET("/registers", recH.ListRegisters, rbac.RequirePermission("organization:read"))
 	api.POST("/registers", recH.CreateRegister, rbac.RequirePermission("organization:update"))
+	api.PATCH("/registers/:id", recH.PatchRegister, rbac.RequirePermission("organization:update"))
 	api.POST("/shifts/open", recH.OpenShift, rbac.RequirePermission("receipt:create"))
 	api.GET("/shifts/open", recH.OpenShiftForRegister, rbac.RequirePermission("receipt:read"))
 	api.GET("/shifts/:id/report", recH.XReport, rbac.RequirePermission("receipt:read"))
@@ -119,6 +121,23 @@ func main() {
 	api.POST("/marking/write-off", markH.WriteOff, rbac.RequirePermission("marking:manage"))
 	api.GET("/marking/queue", markH.Queue, rbac.RequirePermission("marking:view"))
 	api.GET("/integrations/log", markH.Log, rbac.RequirePermission("marking:view"))
+
+	// Склад и заказы (этап 6)
+	api.GET("/counterparties", stockH.ListCounterparties, rbac.RequirePermission("document:read"))
+	api.POST("/counterparties", stockH.CreateCounterparty, rbac.RequirePermission("document:create"))
+	api.GET("/warehouses", stockH.ListWarehouses, rbac.RequirePermission("document:read"))
+	api.POST("/warehouses", stockH.CreateWarehouse, rbac.RequirePermission("organization:update"))
+	api.GET("/stock/balances", stockH.Balances, rbac.RequirePermission("document:read"))
+	api.POST("/stock/receipts", stockH.CreateReceiptDoc, rbac.RequirePermission("document:create"))
+	api.GET("/stock/receipts", stockH.ListReceiptDocs, rbac.RequirePermission("document:read"))
+	api.POST("/stock/receipts/:id/post", stockH.PostReceiptDoc, rbac.RequirePermission("document:post"))
+	api.POST("/orders", stockH.CreateOrder, rbac.RequirePermission("document:create"))
+	api.GET("/orders", stockH.ListOrders, rbac.RequirePermission("document:read"))
+	api.GET("/orders/:id", stockH.GetOrder, rbac.RequirePermission("document:read"))
+	api.POST("/orders/:id/confirm", stockH.ConfirmOrder, rbac.RequirePermission("document:post"))
+	api.POST("/orders/:id/cancel", stockH.CancelOrder, rbac.RequirePermission("document:update"))
+	api.POST("/shipments", stockH.CreateShipment, rbac.RequirePermission("document:post"))
+	api.GET("/shipments", stockH.ListShipments, rbac.RequirePermission("document:read"))
 
 	slog.Info("backend starting", "port", cfg.Port, "env", cfg.Env)
 

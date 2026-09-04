@@ -70,6 +70,31 @@ func (h *Receipt) CreateRegister(c echo.Context) error {
 	return c.JSON(http.StatusCreated, map[string]int64{"id": id})
 }
 
+// PatchRegister привязывает склад (контроль остатков) и статус кассы.
+func (h *Receipt) PatchRegister(c echo.Context) error {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var raw map[string]interface{}
+	if err := c.Bind(&raw); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "bad body"})
+	}
+	if v, ok := raw["warehouse_id"].(float64); ok {
+		if v == 0 {
+			_, _ = h.Store.PG.Exec(c.Request().Context(), `UPDATE cash_register SET warehouse_id=NULL WHERE id=$1`, id)
+		} else {
+			res, err := h.Store.PG.Exec(c.Request().Context(), `
+				UPDATE cash_register r SET warehouse_id=$2 FROM warehouse w
+				WHERE r.id=$1 AND w.id=$2 AND w.organization_id=r.organization_id`, id, int64(v))
+			if err != nil || res.RowsAffected() == 0 {
+				return c.JSON(http.StatusBadRequest, map[string]string{"error": "bad warehouse (other org?)"})
+			}
+		}
+	}
+	if v, ok := raw["status"].(string); ok && (v == "ACTIVE" || v == "INACTIVE" || v == "BLOCKED") {
+		_, _ = h.Store.PG.Exec(c.Request().Context(), `UPDATE cash_register SET status=$2 WHERE id=$1`, id, v)
+	}
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+}
+
 // ---------- Shifts ----------
 
 func (h *Receipt) OpenShift(c echo.Context) error {
@@ -356,6 +381,15 @@ func totals(lines []line) (total, vat float64, marked bool) {
 	return round2(total), round2(vat), marked
 }
 
+// lineQty сворачивает позиции в карту product → qty для складских операций.
+func lineQty(lines []line) map[int64]float64 {
+	m := map[int64]float64{}
+	for _, l := range lines {
+		m[l.productID] += l.qty
+	}
+	return m
+}
+
 func (h *Receipt) insertReceipt(c echo.Context, tx pgx.Tx, org, reg, shift int64, rtype string,
 	lines []line, payType string, payCash, payCard float64, baseID *int64, corrReason string) (int64, string, error) {
 	ctx := c.Request().Context()
@@ -421,7 +455,8 @@ func (h *Receipt) Sell(c echo.Context) error {
 	err := h.Store.Tx(c.Request().Context(), func(tx pgx.Tx) error {
 		ctx := c.Request().Context()
 		var org int64
-		if err := tx.QueryRow(ctx, `SELECT organization_id FROM cash_register WHERE id=$1`, b.CashRegisterID).Scan(&org); err != nil {
+		var warehouse *int64
+		if err := tx.QueryRow(ctx, `SELECT organization_id, warehouse_id FROM cash_register WHERE id=$1`, b.CashRegisterID).Scan(&org, &warehouse); err != nil {
 			return echo.NewHTTPError(http.StatusNotFound, "no register")
 		}
 		var shift int64
@@ -431,6 +466,11 @@ func (h *Receipt) Sell(c echo.Context) error {
 		lines, err := h.resolveItems(c, tx, org, b.Items)
 		if err != nil {
 			return err
+		}
+		if warehouse != nil {
+			if err := deductLocked(tx, ctx, *warehouse, lineQty(lines)); err != nil {
+				return err
+			}
 		}
 		rid, number, err = h.insertReceipt(c, tx, org, b.CashRegisterID, shift, "SALE", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, nil, "")
 		return err
@@ -543,6 +583,14 @@ func (h *Receipt) Return(c echo.Context) error {
 				return err
 			}
 		}
+		// Возврат остатков на склад кассы (если привязан).
+		var warehouse *int64
+		_ = tx.QueryRow(ctx, `SELECT warehouse_id FROM cash_register WHERE id=$1`, reg).Scan(&warehouse)
+		if warehouse != nil {
+			if err := addLocked(tx, ctx, *warehouse, lineQty(lines)); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -578,7 +626,8 @@ func (h *Receipt) Correction(c echo.Context) error {
 	err := h.Store.Tx(c.Request().Context(), func(tx pgx.Tx) error {
 		ctx := c.Request().Context()
 		var org int64
-		if err := tx.QueryRow(ctx, `SELECT organization_id FROM cash_register WHERE id=$1`, b.CashRegisterID).Scan(&org); err != nil {
+		var warehouse *int64
+		if err := tx.QueryRow(ctx, `SELECT organization_id, warehouse_id FROM cash_register WHERE id=$1`, b.CashRegisterID).Scan(&org, &warehouse); err != nil {
 			return echo.NewHTTPError(http.StatusNotFound, "no register")
 		}
 		var shift int64
@@ -588,6 +637,11 @@ func (h *Receipt) Correction(c echo.Context) error {
 		lines, err := h.resolveItems(c, tx, org, b.Items)
 		if err != nil {
 			return err
+		}
+		if warehouse != nil {
+			if err := deductLocked(tx, ctx, *warehouse, lineQty(lines)); err != nil {
+				return err
+			}
 		}
 		rid, number, err = h.insertReceipt(c, tx, org, b.CashRegisterID, shift, "CORRECTION", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, nil, b.Reason)
 		return err
