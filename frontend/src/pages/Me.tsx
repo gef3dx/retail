@@ -24,6 +24,7 @@ export function Me() {
         <Link className="px-4 py-2 border rounded" to="/orgs">Организации</Link>
         <Link className="px-4 py-2 border rounded" to="/products">Товары</Link>
         <Link className="px-4 py-2 border rounded" to="/dicts">Справочники</Link>
+        <Link className="px-4 py-2 border rounded" to="/cashier">Касса</Link>
         <button
           className="px-4 py-2 bg-slate-900 text-white rounded"
           onClick={() => {

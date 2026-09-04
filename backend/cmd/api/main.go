@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"retail-backend/internal/config"
 	"retail-backend/internal/handler"
+	"retail-backend/internal/ofd"
 	rbac "retail-backend/internal/middleware"
 	"retail-backend/internal/store"
 )
@@ -49,6 +51,18 @@ func main() {
 	usersH := &handler.Users{Store: st}
 	orgsH := &handler.Orgs{Store: st}
 	catH := &handler.Catalog{Store: st}
+	recH := &handler.Receipt{Store: st}
+
+	// Фоновый воркер ОФД (mock). Интервал через env, по умолчанию 2с для живости кассы.
+	ofdEvery := 2 * time.Second
+	if v := os.Getenv("OFD_WORKER_INTERVAL_SEC"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			ofdEvery = time.Duration(n) * time.Second
+		}
+	}
+	ofdCtx, stopOfd := context.WithCancel(ctx)
+	defer stopOfd()
+	go ofd.Worker(ofdCtx, st, ofdEvery)
 
 	// Публичное
 	e.POST("/api/v1/auth/register", authH.Register)
@@ -80,6 +94,20 @@ func main() {
 	api.GET("/products/:id/prices", catH.ListPrices, rbac.RequirePermission("product:read"))
 	api.POST("/products/:id/prices", catH.AddPrice, rbac.RequirePermission("product:update"))
 	api.GET("/price-types", catH.ListPriceTypes, rbac.RequirePermission("product:read"))
+
+	// Касса (этап 4)
+	api.GET("/registers", recH.ListRegisters, rbac.RequirePermission("organization:read"))
+	api.POST("/registers", recH.CreateRegister, rbac.RequirePermission("organization:update"))
+	api.POST("/shifts/open", recH.OpenShift, rbac.RequirePermission("receipt:create"))
+	api.GET("/shifts/open", recH.OpenShiftForRegister, rbac.RequirePermission("receipt:read"))
+	api.GET("/shifts/:id/report", recH.XReport, rbac.RequirePermission("receipt:read"))
+	api.POST("/shifts/:id/close", recH.CloseShift, rbac.RequirePermission("receipt:create"))
+	api.POST("/receipts/sell", recH.Sell, rbac.RequirePermission("receipt:create"))
+	api.POST("/receipts/return", recH.Return, rbac.RequirePermission("receipt:return"))
+	api.POST("/receipts/correction", recH.Correction, rbac.RequirePermission("receipt:create"))
+	api.GET("/receipts", recH.ListReceipts, rbac.RequirePermission("receipt:read"))
+	api.GET("/ofd-settings", recH.GetOfdSettings, rbac.RequirePermission("organization:read"))
+	api.PATCH("/ofd-settings", recH.PatchOfdSettings, rbac.RequirePermission("organization:update"))
 
 	slog.Info("backend starting", "port", cfg.Port, "env", cfg.Env)
 
