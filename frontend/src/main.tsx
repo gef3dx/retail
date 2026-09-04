@@ -10,6 +10,7 @@ import { Orgs } from './pages/Orgs';
 import { Products } from './pages/Products';
 import { Dicts } from './pages/Dicts';
 import { Cashier } from './pages/Cashier';
+import { Marking } from './pages/Marking';
 import { useAuth } from './store';
 import './index.css';
 
@@ -34,6 +35,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/products" element={<Guard><Products /></Guard>} />
           <Route path="/dicts" element={<Guard><Dicts /></Guard>} />
           <Route path="/cashier" element={<Guard><Cashier /></Guard>} />
+          <Route path="/marking" element={<Guard><Marking /></Guard>} />
           <Route path="*" element={<Navigate to="/me" replace />} />
         </Routes>
       </BrowserRouter>

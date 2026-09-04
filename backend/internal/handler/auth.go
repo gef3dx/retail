@@ -100,6 +100,7 @@ func (a *Auth) Register(c echo.Context) error {
 		if err := ensureDefaultPriceTypes(tx, c, orgID); err != nil {
 			return err
 		}
+		EnsureGismtForOrgTx(tx, c, orgID)
 		return nil
 	})
 	if err != nil {

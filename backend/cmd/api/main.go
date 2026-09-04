@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"retail-backend/internal/config"
+	"retail-backend/internal/gismt"
 	"retail-backend/internal/handler"
 	"retail-backend/internal/ofd"
 	rbac "retail-backend/internal/middleware"
@@ -52,6 +53,7 @@ func main() {
 	orgsH := &handler.Orgs{Store: st}
 	catH := &handler.Catalog{Store: st}
 	recH := &handler.Receipt{Store: st}
+	markH := &handler.Marking{Store: st}
 
 	// Фоновый воркер ОФД (mock). Интервал через env, по умолчанию 2с для живости кассы.
 	ofdEvery := 2 * time.Second
@@ -63,6 +65,7 @@ func main() {
 	ofdCtx, stopOfd := context.WithCancel(ctx)
 	defer stopOfd()
 	go ofd.Worker(ofdCtx, st, ofdEvery)
+	go gismt.Worker(ofdCtx, st, ofdEvery)
 
 	// Публичное
 	e.POST("/api/v1/auth/register", authH.Register)
@@ -108,6 +111,14 @@ func main() {
 	api.GET("/receipts", recH.ListReceipts, rbac.RequirePermission("receipt:read"))
 	api.GET("/ofd-settings", recH.GetOfdSettings, rbac.RequirePermission("organization:read"))
 	api.PATCH("/ofd-settings", recH.PatchOfdSettings, rbac.RequirePermission("organization:update"))
+
+	// Маркировка (этап 5)
+	api.POST("/marking/codes", markH.Register, rbac.RequirePermission("marking:manage"))
+	api.GET("/marking/codes", markH.List, rbac.RequirePermission("marking:view"))
+	api.GET("/marking/check/:code", markH.Check, rbac.RequirePermission("marking:view"))
+	api.POST("/marking/write-off", markH.WriteOff, rbac.RequirePermission("marking:manage"))
+	api.GET("/marking/queue", markH.Queue, rbac.RequirePermission("marking:view"))
+	api.GET("/integrations/log", markH.Log, rbac.RequirePermission("marking:view"))
 
 	slog.Info("backend starting", "port", cfg.Port, "env", cfg.Env)
 
