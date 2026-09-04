@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 
-type CartLine = { product_id: number; name: string; price: number; qty: number };
+type CartLine = { product_id: number; name: string; price: number; qty: number; is_marked: boolean; codes: string };
 
 export function Cashier() {
   const qc = useQueryClient();
@@ -41,7 +41,7 @@ export function Cashier() {
       setCart((c) => {
         const ex = c.find((l) => l.product_id === p.id);
         if (ex) return c.map((l) => (l.product_id === p.id ? { ...l, qty: l.qty + 1 } : l));
-        return [...c, { product_id: p.id, name: p.name, price, qty: 1 }];
+        return [...c, { product_id: p.id, name: p.name, price, qty: 1, is_marked: !!p.is_marked, codes: '' }];
       });
       setCode('');
     } catch {
@@ -55,7 +55,11 @@ export function Cashier() {
       return (
         await api.post('/receipts/sell', {
           cash_register_id: Number(regId),
-          items: cart.map((l) => ({ product_id: l.product_id, quantity: l.qty })),
+          items: cart.map((l) => ({
+            product_id: l.product_id,
+            quantity: l.qty,
+            marking_codes: l.is_marked ? l.codes.split(/[\s,]+/).filter(Boolean) : undefined,
+          })),
           payment_type: payType,
           payment_cash: 0,
           payment_card: 0,
@@ -124,9 +128,21 @@ export function Cashier() {
           <button className="px-3 py-1 border rounded text-sm" onClick={addByCode}>+</button>
         </div>
         {cart.map((l) => (
-          <div key={l.product_id} className="flex justify-between text-sm border-b py-1">
-            <span>{l.name} × {l.qty}</span>
-            <span>{(l.price * l.qty).toFixed(2)}</span>
+          <div key={l.product_id} className="text-sm border-b py-1">
+            <div className="flex justify-between">
+              <span>{l.name} × {l.qty}</span>
+              <span>{(l.price * l.qty).toFixed(2)}</span>
+            </div>
+            {l.is_marked && (
+              <input
+                className="border rounded px-2 py-1 text-xs w-full mt-1"
+                placeholder={`Коды маркировки (${l.qty} шт через пробел)`}
+                value={l.codes}
+                onChange={(e) =>
+                  setCart((c) => c.map((x) => (x.product_id === l.product_id ? { ...x, codes: e.target.value } : x)))
+                }
+              />
+            )}
           </div>
         ))}
         <p className="font-bold mt-2">Итого: {total.toFixed(2)}</p>

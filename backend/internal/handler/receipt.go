@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
@@ -194,13 +196,15 @@ func (h *Receipt) CloseShift(c echo.Context) error {
 // ---------- Sell / Return / Correction ----------
 
 type sellItem struct {
-	ProductID *int64  `json:"product_id"`
-	Code      string  `json:"code"`
-	Quantity  float64 `json:"quantity"`
+	ProductID *int64   `json:"product_id"`
+	Code      string   `json:"code"`
+	Quantity  float64  `json:"quantity"`
 	Price     *float64 `json:"price"`
-	Discount  float64 `json:"discount"`
-	ItemAttr  string  `json:"ffd_item_attribute"`
-	PayMethod string  `json:"ffd_payment_method"`
+	Discount  float64  `json:"discount"`
+	ItemAttr  string   `json:"ffd_item_attribute"`
+	PayMethod string   `json:"ffd_payment_method"`
+	// Коды маркировки (обязательны для маркированного товара, по одному на единицу).
+	MarkingCodes []string `json:"marking_codes"`
 }
 
 type sellReq struct {
@@ -222,6 +226,39 @@ type line struct {
 	marked    bool
 	attr      string
 	method    string
+	codeIDs   []int64
+}
+
+// lockCodes проверяет коды маркировки (AVAILABLE, тот же товар и организация) и лочит их.
+func lockCodes(tx pgx.Tx, ctx context.Context, org, productID int64, codes []string) ([]int64, error) {
+	var ids []int64
+	seen := map[string]bool{}
+	for _, raw := range codes {
+		code := strings.TrimSpace(raw)
+		if code == "" || seen[code] {
+			continue
+		}
+		seen[code] = true
+		var id int64
+		var st string
+		var pid, porg int64
+		if err := tx.QueryRow(ctx, `
+			SELECT id, status, product_id, organization_id FROM marking_code_pool WHERE code=$1 FOR UPDATE`, code).
+			Scan(&id, &st, &pid, &porg); err != nil {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "unknown marking code: "+code)
+		}
+		if pid != productID {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "code product mismatch: "+code)
+		}
+		if porg != org {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "code org mismatch: "+code)
+		}
+		if st != "AVAILABLE" {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "code not available ("+st+"): "+code)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 // resolveItems проверяет товары, подставляет цену (явная → розница → базовая).
@@ -291,7 +328,18 @@ func (h *Receipt) resolveItems(c echo.Context, tx pgx.Tx, org int64, in []sellIt
 		if method == "" {
 			method = "FULL"
 		}
-		out = append(out, line{id, name, sku, it.Quantity, round2(price), vat, round2(it.Discount), marked, attr, method})
+		var codeIDs []int64
+		if marked {
+			if len(it.MarkingCodes) != int(it.Quantity) {
+				return nil, echo.NewHTTPError(http.StatusBadRequest, "marked product needs one code per unit")
+			}
+			var err error
+			codeIDs, err = lockCodes(tx, c.Request().Context(), org, id, it.MarkingCodes)
+			if err != nil {
+				return nil, err
+			}
+		}
+		out = append(out, line{id, name, sku, it.Quantity, round2(price), vat, round2(it.Discount), marked, attr, method, codeIDs})
 	}
 	return out, nil
 }
@@ -347,6 +395,16 @@ func (h *Receipt) insertReceipt(c echo.Context, tx pgx.Tx, org, reg, shift int64
 		INSERT INTO ofd_send_status(receipt_id, organization_id) VALUES($1,$2)`, rid, org); err != nil {
 		return 0, "", err
 	}
+	// Списание кодов маркировки (этап 5).
+	var allCodes []int64
+	for _, l := range lines {
+		allCodes = append(allCodes, l.codeIDs...)
+	}
+	if len(allCodes) > 0 {
+		if err := withdrawLocked(tx, ctx, org, rid, x.UserID, allCodes); err != nil {
+			return 0, "", err
+		}
+	}
 	return rid, number, nil
 }
 
@@ -391,8 +449,9 @@ func (h *Receipt) Sell(c echo.Context) error {
 type returnReq struct {
 	BaseReceiptID int64 `json:"base_receipt_id"`
 	Items         []struct {
-		ProductID int64   `json:"product_id"`
-		Quantity  float64 `json:"quantity"`
+		ProductID    int64    `json:"product_id"`
+		Quantity     float64  `json:"quantity"`
+		MarkingCodes []string `json:"marking_codes"`
 	} `json:"items"`
 	PaymentType string  `json:"payment_type"`
 	PaymentCash float64 `json:"payment_cash"`
@@ -427,6 +486,7 @@ func (h *Receipt) Return(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusConflict, "base shift closed")
 		}
 		var lines []line
+		var retCodes []int64
 		for _, it := range b.Items {
 			if it.Quantity <= 0 {
 				return echo.NewHTTPError(http.StatusBadRequest, "quantity must be > 0")
@@ -448,11 +508,42 @@ func (h *Receipt) Return(c echo.Context) error {
 			if it.Quantity > sold-already {
 				return echo.NewHTTPError(http.StatusBadRequest, "return qty exceeds sold")
 			}
-			lines = append(lines, line{it.ProductID, name, sku, it.Quantity, price, vat, 0, marked, "GOOD", "FULL"})
+			if marked {
+				if len(it.MarkingCodes) != int(it.Quantity) {
+					return echo.NewHTTPError(http.StatusBadRequest, "marked return needs one code per unit")
+				}
+				// Коды должны быть из исходного чека и все еще SOLD.
+				for _, raw := range it.MarkingCodes {
+					code := strings.TrimSpace(raw)
+					var cid int64
+					var st string
+					var linkRID *int64
+					if err := tx.QueryRow(ctx, `
+						SELECT m.id, m.status, l.receipt_id
+						FROM marking_code_pool m
+						LEFT JOIN receipt_marking_link l ON l.marking_code_id=m.id
+						WHERE m.code=$1 FOR UPDATE OF m`, code).Scan(&cid, &st, &linkRID); err != nil {
+						return echo.NewHTTPError(http.StatusBadRequest, "unknown marking code: "+code)
+					}
+					if linkRID == nil || *linkRID != b.BaseReceiptID || st != "SOLD" {
+						return echo.NewHTTPError(http.StatusBadRequest, "code not sold in base receipt: "+code)
+					}
+					retCodes = append(retCodes, cid)
+				}
+			}
+			lines = append(lines, line{it.ProductID, name, sku, it.Quantity, price, vat, 0, marked, "GOOD", "FULL", nil})
 		}
 		var err error
 		rid, number, err = h.insertReceipt(c, tx, org, reg, shift, "RETURN", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, &b.BaseReceiptID, "")
-		return err
+		if err != nil {
+			return err
+		}
+		if len(retCodes) > 0 {
+			if err := returnLocked(tx, ctx, org, b.BaseReceiptID, rid, retCodes); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		if he, ok := err.(*echo.HTTPError); ok {

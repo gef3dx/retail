@@ -53,6 +53,7 @@ func (h *Orgs) Create(c echo.Context) error {
 		return c.JSON(http.StatusConflict, map[string]string{"error": "duplicate inn"})
 	}
 	EnsurePriceTypesForOrg(h.Store, c, id)
+	EnsureGismtForOrg(h.Store, c, id)
 	x := middleware.CtxOf(c)
 	h.Store.Audit(c.Request().Context(), &x.UserID, "org.create", "Создание организации", "organization", &id, r, clientIP(c), c.Request().UserAgent(), true, "")
 	return c.JSON(http.StatusCreated, map[string]int64{"id": id})
