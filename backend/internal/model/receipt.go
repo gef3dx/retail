@@ -85,3 +85,29 @@ func LineQty(lines []ReceiptLine) map[int64]float64 {
 	}
 	return m
 }
+
+// FiscalItem — позиция чека для фискализации (ФФД 1.2, упрощённо).
+type FiscalItem struct {
+	Name     string  `json:"name"`
+	Quantity float64 `json:"quantity"`
+	Price    float64 `json:"price"`
+	VATRate  float64 `json:"vat_rate"`
+}
+
+// FiscalPayload — чек для отправки провайдеру фискализации.
+type FiscalPayload struct {
+	ReceiptID int64        `json:"receipt_id"`
+	Number    string       `json:"receipt_number"`
+	Type      string       `json:"receipt_type"`
+	Total     float64      `json:"total"`
+	Cash      float64      `json:"payment_cash"`
+	Card      float64      `json:"payment_card"`
+	Items     []FiscalItem `json:"items"`
+}
+
+// FiscalResult — фискальные данные от провайдера.
+type FiscalResult struct {
+	DocNumber string `json:"fiscal_document_number"`
+	Sign      string `json:"fiscal_sign"`
+	QRURL     string `json:"qr_url"`
+}

@@ -156,3 +156,23 @@ func (h *Receipt) PatchOfdSettings(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
+
+// TestFiscal — пробное пробитие через активного провайдера (ничего не сохраняет).
+func (h *Receipt) TestFiscal(c echo.Context) error {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var b struct {
+		Total float64 `json:"total"`
+	}
+	_ = c.Bind(&b)
+	res, err := h.Svc.TestFiscal(c.Request().Context(), id, b.Total)
+	if err != nil {
+		return writeErr(c, err)
+	}
+	return c.JSON(http.StatusOK, res)
+}
+
+// ActiveProvider — активный ОФД-провайдер (без секретов, для бейджа кассы).
+func (h *Receipt) ActiveProvider(c echo.Context) error {
+	orgID, _ := strconv.ParseInt(c.QueryParam("org_id"), 10, 64)
+	return c.JSON(http.StatusOK, h.Svc.ActiveProvider(c.Request().Context(), orgID))
+}

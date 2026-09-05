@@ -4,6 +4,9 @@ import (
 	"context"
 	"strings"
 
+	"retail-backend/internal/ofd"
+	"retail-backend/internal/provider"
+
 	"github.com/jackc/pgx/v5"
 	"retail-backend/internal/model"
 	"retail-backend/internal/repository"
@@ -13,6 +16,8 @@ import (
 // ReceiptService — кассы, смены, чеки.
 type ReceiptService struct {
 	Store     *store.Store
+	Reg       *provider.Registry
+	IntRepo   repository.IntegrationRepo
 	Registers repository.RegisterRepo
 	Shifts    repository.ShiftRepo
 	Receipts  repository.ReceiptRepo
@@ -484,4 +489,65 @@ func (s *ReceiptService) PatchOfdSettings(ctx context.Context, orgID int64, raw 
 	}
 	s.Ofd.PatchSettings(ctx, s.Store.PG, orgID, failFirst, auto)
 	return nil
+}
+
+// TestFiscal выполняет пробную фискализацию синтетического чека через активного
+// провайдера (OFD_HTTP иначе эмулятор). Ничего не сохраняет.
+func (s *ReceiptService) TestFiscal(ctx context.Context, regID int64, total float64) (map[string]interface{}, error) {
+	if regID == 0 {
+		return nil, BadRequest("register required")
+	}
+	if total <= 0 {
+		total = 1
+	}
+	org, _, err := s.Registers.OrgWarehouse(ctx, s.Store.PG, regID)
+	if err != nil {
+		return nil, NotFound("no register")
+	}
+	payload := model.FiscalPayload{
+		ReceiptID: 0, Number: "TEST", Type: "SALE", Total: total,
+		Items: []model.FiscalItem{{Name: "Тестовая позиция", Quantity: 1, Price: total, VATRate: 20}},
+	}
+	var prov ofd.KktProvider
+	var creds map[string]string
+	if c, enabled, found := s.IntRepo.Get(ctx, s.Store.PG, org, "OFD_HTTP"); found && enabled {
+		if p := s.Reg.ByCode("OFD_HTTP"); p != nil && p.IsConfigured(c) {
+			prov, creds = ofd.HTTPKkt{}, c
+		}
+	}
+	code := "OFD_EMULATOR"
+	if prov == nil {
+		if _, enabled, found := s.IntRepo.Get(ctx, s.Store.PG, org, "OFD_EMULATOR"); found && !enabled {
+			return nil, Conflict("no active OFD provider")
+		}
+		prov = ofd.Emulator{}
+	} else {
+		code = "OFD_HTTP"
+	}
+	r, err := prov.Fiscalize(ctx, creds, payload)
+	if err != nil {
+		return nil, Conflict("test fiscalize failed: " + err.Error())
+	}
+	return map[string]interface{}{
+		"provider": code, "fiscal_document_number": r.DocNumber,
+		"fiscal_sign": r.Sign, "qr_url": r.QRURL, "test": true,
+	}, nil
+}
+
+// ActiveProvider возвращает активного ОФД-провайдера организации (без секретов).
+func (s *ReceiptService) ActiveProvider(ctx context.Context, orgID int64) map[string]string {
+	if code, err := s.activeCode(ctx, orgID); err == nil {
+		if p := s.Reg.ByCode(code); p != nil {
+			return map[string]string{"code": code, "name": p.Name()}
+		}
+	}
+	return map[string]string{"code": "", "name": "not configured"}
+}
+
+func (s *ReceiptService) activeCode(ctx context.Context, orgID int64) (string, error) {
+	statuses := s.IntRepo.Statuses(ctx, s.Store.PG, s.Reg, orgID)
+	if code := s.Reg.ActiveFor("OFD", statuses); code != "" {
+		return code, nil
+	}
+	return "", Conflict("no active OFD provider")
 }

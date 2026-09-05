@@ -64,7 +64,8 @@ func main() {
 		Products: repository.ProductRepo{}, Audit: repository.AuditRepo{},
 	}}
 	recH := &handler.Receipt{Svc: &service.ReceiptService{
-		Store: st, Registers: repository.RegisterRepo{}, Shifts: repository.ShiftRepo{},
+		Store: st, Reg: provider.DefaultRegistry(), IntRepo: repository.IntegrationRepo{},
+		Registers: repository.RegisterRepo{}, Shifts: repository.ShiftRepo{},
 		Receipts: repository.ReceiptRepo{}, Products: repository.ProductRepo{},
 		Balances: repository.BalanceRepo{}, Marking: repository.MarkingRepo{},
 		Notify: repository.NotifyRepo{}, Ofd: repository.OfdRepo{}, Audit: repository.AuditRepo{},
@@ -149,6 +150,8 @@ func main() {
 	api.POST("/receipts/return", recH.Return, rbac.RequirePermission("receipt:return"))
 	api.POST("/receipts/correction", recH.Correction, rbac.RequirePermission("receipt:create"))
 	api.GET("/receipts", recH.ListReceipts, rbac.RequirePermission("receipt:read"))
+	api.POST("/registers/:id/test-fiscal", recH.TestFiscal, rbac.RequirePermission("receipt:create"))
+	api.GET("/ofd-active", recH.ActiveProvider, rbac.RequirePermission("receipt:read"))
 	api.GET("/ofd-settings", recH.GetOfdSettings, rbac.RequirePermission("organization:read"))
 	api.PATCH("/ofd-settings", recH.PatchOfdSettings, rbac.RequirePermission("organization:update"))
 
