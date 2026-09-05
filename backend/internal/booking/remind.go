@@ -5,7 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"retail-backend/internal/notify"
+	"retail-backend/internal/repository"
+	"retail-backend/internal/service"
 	"retail-backend/internal/store"
 )
 
@@ -61,7 +62,7 @@ func remindDue(ctx context.Context, s *store.Store) {
 		if d.by == nil {
 			continue
 		}
-		notify.EnqueueUser(s, ctx, d.org, "BOOKING_REMINDER", []string{"WEB", "EMAIL"}, *d.by,
+		(&service.NotifyService{Store: s, Queue: repository.NotifyRepo{}}).EnqueueUser(ctx, d.org, "BOOKING_REMINDER", []string{"WEB", "EMAIL"}, *d.by,
 			map[string]interface{}{"booking_id": d.id, "service_name": d.svc,
 				"start_datetime": d.start.Format("2006-01-02 15:04")}, "booking", &d.id)
 		_, _ = s.PG.Exec(ctx, `UPDATE service_booking SET notification_sent=TRUE WHERE id=$1`, d.id)

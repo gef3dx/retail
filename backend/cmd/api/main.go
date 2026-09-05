@@ -11,13 +11,15 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"retail-backend/internal/config"
 	"retail-backend/internal/booking"
+	"retail-backend/internal/config"
 	"retail-backend/internal/gismt"
 	"retail-backend/internal/handler"
+	rbac "retail-backend/internal/middleware"
 	"retail-backend/internal/notify"
 	"retail-backend/internal/ofd"
-	rbac "retail-backend/internal/middleware"
+	"retail-backend/internal/repository"
+	"retail-backend/internal/service"
 	"retail-backend/internal/store"
 )
 
@@ -37,7 +39,7 @@ func main() {
 	defer st.Close()
 
 	if st.PG != nil {
-		handler.SeedAdmin(ctx, st, cfg.SeedAdminEmail, cfg.SeedAdminPass)
+		service.SeedAdmin(ctx, st, cfg.SeedAdminEmail, cfg.SeedAdminPass)
 	}
 
 	e := echo.New()
@@ -48,17 +50,36 @@ func main() {
 
 	handler.Health(e, st)
 
-	authH := &handler.Auth{Store: st, JWTSecret: cfg.JWTSecret,
-		AccessTTL: time.Duration(cfg.JWTAccessTTL) * time.Minute,
-		RefreshTTL: time.Duration(cfg.JWTRefreshDays) * 24 * time.Hour}
-	usersH := &handler.Users{Store: st}
-	orgsH := &handler.Orgs{Store: st}
-	catH := &handler.Catalog{Store: st}
-	recH := &handler.Receipt{Store: st}
-	markH := &handler.Marking{Store: st}
-	notifyH := &handler.Notify{Store: st}
-	stockH := &handler.Stock{Store: st}
-	bookH := &handler.Booking{Store: st}
+	authH := &handler.Auth{Svc: &service.AuthService{
+		Store: st, Users: repository.UserRepo{}, Orgs: repository.OrgRepo{}, Audit: repository.AuditRepo{},
+		JWTSecret:  cfg.JWTSecret,
+		AccessTTL:  time.Duration(cfg.JWTAccessTTL) * time.Minute,
+		RefreshTTL: time.Duration(cfg.JWTRefreshDays) * 24 * time.Hour,
+	}}
+	usersH := &handler.Users{Svc: &service.UserService{Store: st, Users: repository.UserRepo{}, Audit: repository.AuditRepo{}}}
+	orgsH := &handler.Orgs{Svc: &service.OrgService{Store: st, Orgs: repository.OrgRepo{}, Audit: repository.AuditRepo{}}}
+	catH := &handler.Catalog{Svc: &service.CatalogService{
+		Store: st, Categories: repository.CategoryRepo{}, Brands: repository.BrandRepo{},
+		Products: repository.ProductRepo{}, Audit: repository.AuditRepo{},
+	}}
+	recH := &handler.Receipt{Svc: &service.ReceiptService{
+		Store: st, Registers: repository.RegisterRepo{}, Shifts: repository.ShiftRepo{},
+		Receipts: repository.ReceiptRepo{}, Products: repository.ProductRepo{},
+		Balances: repository.BalanceRepo{}, Marking: repository.MarkingRepo{},
+		Notify: repository.NotifyRepo{}, Ofd: repository.OfdRepo{}, Audit: repository.AuditRepo{},
+	}}
+	markH := &handler.Marking{Svc: &service.MarkingService{
+		Store: st, Codes: repository.CodesRepo{}, Audit: repository.AuditRepo{},
+	}}
+	notifyH := &handler.Notify{Svc: &service.NotifyService{Store: st, Queue: repository.NotifyRepo{}}}
+	stockH := &handler.Stock{Svc: &service.StockService{
+		Store: st, Counterparties: repository.CounterpartyRepo{}, Warehouses: repository.WarehouseRepo{},
+		Docs: repository.StockDocRepo{}, Orders: repository.OrderRepo{}, Shipments: repository.ShipmentRepo{},
+		Products: repository.ProductRepo{}, Balance: repository.BalanceRepo{}, Notify: repository.NotifyRepo{},
+	}}
+	bookH := &handler.Booking{Svc: &service.BookingService{
+		Store: st, Resources: repository.ResourceRepo{}, Bookings: repository.BookingRepo{}, Notify: repository.NotifyRepo{},
+	}}
 
 	// Фоновый воркер ОФД (mock). Интервал через env, по умолчанию 2с для живости кассы.
 	ofdEvery := 2 * time.Second
