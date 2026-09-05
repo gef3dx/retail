@@ -137,6 +137,7 @@ func (h *Catalog) ListProducts(c echo.Context) error {
 	brand := c.QueryParam("brand_id")
 	marked := c.QueryParam("marked")
 	status := c.QueryParam("status")
+	ptype := c.QueryParam("type")
 	orgID, _ := strconv.ParseInt(c.QueryParam("org_id"), 10, 64)
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	if limit <= 0 || limit > 200 {
@@ -165,10 +166,15 @@ func (h *Catalog) ListProducts(c echo.Context) error {
 		args = append(args, status)
 		where += ` AND p.status_code = $` + strconv.Itoa(len(args))
 	}
+	if ptype == "GOODS" || ptype == "SERVICE" {
+		args = append(args, ptype)
+		where += ` AND p.product_type = $` + strconv.Itoa(len(args))
+	}
 
 	rows, err := h.Store.PG.Query(c.Request().Context(), `
 		SELECT p.id, p.sku, p.gtin, p.name, p.category_id, p.brand_id, p.measure_unit,
-		       p.base_price, p.vat_rate, p.is_marked, p.status_code, `+priceFrag(orgID)+`
+		       p.base_price, p.vat_rate, p.is_marked, p.status_code,
+		       p.product_type, p.service_duration_minutes, p.service_requires_booking, `+priceFrag(orgID)+`
 		FROM catalog_product p `+where+` ORDER BY p.id LIMIT $1 OFFSET $2`, args...)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query failed"})
@@ -177,17 +183,19 @@ func (h *Catalog) ListProducts(c echo.Context) error {
 	out := []map[string]interface{}{}
 	for rows.Next() {
 		var id int64
-		var sku, name, unit, st string
+		var sku, name, unit, st, ptyp string
 		var gtin *string
 		var catID, brandID *int64
 		var base, vat *float64
-		var marked bool
+		var marked, reqBook bool
+		var dur *int
 		var retail *float64
-		_ = rows.Scan(&id, &sku, &gtin, &name, &catID, &brandID, &unit, &base, &vat, &marked, &st, &retail)
+		_ = rows.Scan(&id, &sku, &gtin, &name, &catID, &brandID, &unit, &base, &vat, &marked, &st, &ptyp, &dur, &reqBook, &retail)
 		out = append(out, map[string]interface{}{
 			"id": id, "sku": sku, "gtin": gtin, "name": name, "category_id": catID,
 			"brand_id": brandID, "measure_unit": unit, "base_price": base, "vat_rate": vat,
 			"is_marked": marked, "status_code": st, "retail_price": retail,
+			"product_type": ptyp, "service_duration_minutes": dur, "service_requires_booking": reqBook,
 		})
 	}
 	return c.JSON(http.StatusOK, out)
@@ -234,6 +242,12 @@ type productReq struct {
 	IsMarked    bool     `json:"is_marked"`
 	MarkingType string   `json:"marking_type"`
 	StatusCode  string   `json:"status_code"`
+	// Услуга (этап 8)
+	ProductType      string `json:"product_type"`
+	ServiceDuration  *int   `json:"service_duration_minutes"`
+	RequiresBooking  *bool  `json:"service_requires_booking"`
+	AllowWalkIn      *bool  `json:"service_allow_walk_in"`
+	BookingEnabled   *bool  `json:"service_booking_enabled"`
 	// Опционально: сразу розничная цена для организации
 	OrgID       *int64   `json:"org_id"`
 	RetailPrice *float64 `json:"retail_price"`
@@ -251,16 +265,27 @@ func (h *Catalog) CreateProduct(c echo.Context) error {
 	if st == "" {
 		st = "ACTIVE"
 	}
+	pt := b.ProductType
+	if pt == "" {
+		pt = "GOODS"
+	}
+	if pt != "GOODS" && pt != "SERVICE" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "product_type GOODS/SERVICE"})
+	}
 	var id int64
 	err := h.Store.Tx(c.Request().Context(), func(tx pgx.Tx) error {
 		ctx := c.Request().Context()
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO catalog_product(sku, gtin, name, description, category_id, brand_id, measure_unit,
-				base_price, vat_rate, is_marked, marking_type, status_code)
+				base_price, vat_rate, is_marked, marking_type, status_code,
+				product_type, service_duration_minutes, service_requires_booking,
+				service_allow_walk_in, service_booking_enabled)
 			VALUES($1, NULLIF($2,''), $3, NULLIF($4,''), $5, $6, COALESCE(NULLIF($7,''),'шт'),
-				$8, COALESCE($9, 20.00), $10, NULLIF($11,''), $12) RETURNING id`,
+				$8, COALESCE($9, 20.00), $10, NULLIF($11,''), $12,
+				$13, $14, COALESCE($15, FALSE), COALESCE($16, TRUE), COALESCE($17, TRUE)) RETURNING id`,
 			b.SKU, b.GTIN, b.Name, b.Description, b.CategoryID, b.BrandID, b.MeasureUnit,
-			b.BasePrice, b.VATRate, b.IsMarked, b.MarkingType, st).Scan(&id); err != nil {
+			b.BasePrice, b.VATRate, b.IsMarked, b.MarkingType, st,
+			pt, b.ServiceDuration, b.RequiresBooking, b.AllowWalkIn, b.BookingEnabled).Scan(&id); err != nil {
 			return err
 		}
 		if b.OrgID != nil && b.RetailPrice != nil {
@@ -314,12 +339,25 @@ func (h *Catalog) UpdateProduct(c echo.Context) error {
 	if v, ok := raw["is_marked"].(bool); ok {
 		marked = v
 	}
-	var catID, brandID interface{}
+	boolean := func(k string) interface{} {
+		if v, ok := raw[k].(bool); ok {
+			return v
+		}
+		return nil
+	}
+	var catID, brandID, duration interface{}
 	if v, ok := raw["category_id"].(float64); ok {
 		catID = int64(v)
 	}
 	if v, ok := raw["brand_id"].(float64); ok {
 		brandID = int64(v)
+	}
+	if v, ok := raw["service_duration_minutes"].(float64); ok {
+		duration = int(v)
+	}
+	ptype := str("product_type")
+	if ptype != nil && ptype != "GOODS" && ptype != "SERVICE" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "product_type GOODS/SERVICE"})
 	}
 	res, err := h.Store.PG.Exec(c.Request().Context(), `
 		UPDATE catalog_product SET
@@ -331,9 +369,15 @@ func (h *Catalog) UpdateProduct(c echo.Context) error {
 			vat_rate = COALESCE($7::numeric, vat_rate),
 			is_marked = COALESCE($8::boolean, is_marked),
 			status_code = COALESCE($9::varchar, status_code),
+			product_type = COALESCE($10::varchar, product_type),
+			service_duration_minutes = COALESCE($11::int, service_duration_minutes),
+			service_requires_booking = COALESCE($12::boolean, service_requires_booking),
+			service_allow_walk_in = COALESCE($13::boolean, service_allow_walk_in),
+			service_booking_enabled = COALESCE($14::boolean, service_booking_enabled),
 			updated_at = NOW()
 		WHERE id = $1 AND is_active = TRUE`,
-		id, str("name"), str("description"), catID, brandID, num("base_price"), num("vat_rate"), marked, str("status_code"))
+		id, str("name"), str("description"), catID, brandID, num("base_price"), num("vat_rate"), marked, str("status_code"),
+		ptype, duration, boolean("service_requires_booking"), boolean("service_allow_walk_in"), boolean("service_booking_enabled"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "update failed"})
 	}
