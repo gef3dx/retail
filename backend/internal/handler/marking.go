@@ -71,3 +71,30 @@ func (h *Marking) Log(c echo.Context) error {
 	orgID, _ := strconv.ParseInt(c.QueryParam("org_id"), 10, 64)
 	return c.JSON(http.StatusOK, h.Svc.Log(c.Request().Context(), orgID, c.QueryParam("type")))
 }
+
+func (h *Marking) GetSettings(c echo.Context) error {
+	orgID, _ := strconv.ParseInt(c.QueryParam("org_id"), 10, 64)
+	st, err := h.Svc.GetSettings(c.Request().Context(), orgID)
+	if err != nil {
+		return writeErr(c, err)
+	}
+	return c.JSON(http.StatusOK, st)
+}
+
+func (h *Marking) PatchSettings(c echo.Context) error {
+	orgID, _ := strconv.ParseInt(c.QueryParam("org_id"), 10, 64)
+	var raw map[string]interface{}
+	if err := c.Bind(&raw); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "bad body"})
+	}
+	if err := h.Svc.PatchSettings(c.Request().Context(), orgID, raw); err != nil {
+		return writeErr(c, err)
+	}
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// ActiveProvider — активный ГИС МТ провайдер (без секретов).
+func (h *Marking) ActiveProvider(c echo.Context) error {
+	orgID, _ := strconv.ParseInt(c.QueryParam("org_id"), 10, 64)
+	return c.JSON(http.StatusOK, h.Svc.ActiveProvider(c.Request().Context(), orgID))
+}

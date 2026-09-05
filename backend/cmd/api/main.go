@@ -67,11 +67,12 @@ func main() {
 		Store: st, Reg: provider.DefaultRegistry(), IntRepo: repository.IntegrationRepo{},
 		Registers: repository.RegisterRepo{}, Shifts: repository.ShiftRepo{},
 		Receipts: repository.ReceiptRepo{}, Products: repository.ProductRepo{},
-		Balances: repository.BalanceRepo{}, Marking: repository.MarkingRepo{},
+		Balances: repository.BalanceRepo{}, Marking: repository.MarkingRepo{}, Gismt: repository.GismtRepo{},
 		Notify: repository.NotifyRepo{}, Ofd: repository.OfdRepo{}, Audit: repository.AuditRepo{},
 	}}
 	markH := &handler.Marking{Svc: &service.MarkingService{
-		Store: st, Codes: repository.CodesRepo{}, Audit: repository.AuditRepo{},
+		Store: st, Reg: provider.DefaultRegistry(), IntRepo: repository.IntegrationRepo{},
+		Codes: repository.CodesRepo{}, Gismt: repository.GismtRepo{}, Audit: repository.AuditRepo{},
 	}}
 	notifyH := &handler.Notify{Svc: &service.NotifyService{Store: st, Queue: repository.NotifyRepo{}}}
 	stockH := &handler.Stock{Svc: &service.StockService{
@@ -162,6 +163,9 @@ func main() {
 	api.POST("/marking/write-off", markH.WriteOff, rbac.RequirePermission("marking:manage"))
 	api.GET("/marking/queue", markH.Queue, rbac.RequirePermission("marking:view"))
 	api.GET("/integrations/log", markH.Log, rbac.RequirePermission("marking:view"))
+	api.GET("/gismt-settings", markH.GetSettings, rbac.RequirePermission("organization:read"))
+	api.PATCH("/gismt-settings", markH.PatchSettings, rbac.RequirePermission("organization:update"))
+	api.GET("/gismt-active", markH.ActiveProvider, rbac.RequirePermission("marking:view"))
 
 	// Склад и заказы (этап 6)
 	api.GET("/counterparties", stockH.ListCounterparties, rbac.RequirePermission("document:read"))

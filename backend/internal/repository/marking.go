@@ -308,6 +308,58 @@ func (GismtRepo) FailMark(ctx context.Context, db DBTX, id int64, attempt, maxRe
 		attempt, maxRet, id)
 }
 
+// MarkAttempt фиксирует попытку с произвольным текстом ошибки.
+func (GismtRepo) MarkAttempt(ctx context.Context, db DBTX, id int64, attempt, maxRet int, msg string) {
+	_, _ = db.Exec(ctx, `
+		UPDATE gismt_queue SET send_attempt=$1, last_attempt_at=NOW(),
+			status=CASE WHEN $1::int >= $2::int THEN 'FAILED' ELSE 'RETRY' END,
+			error_message=$3, updated_at=NOW() WHERE id=$4`,
+		attempt, maxRet, msg, id)
+}
+
+// GismtSettings — операционные настройки ГИС МТ организации.
+type GismtSettings struct {
+	AutoSend     bool `json:"auto_send_enabled"`
+	MaxRetries   int  `json:"max_retries"`
+	FailFirst    int  `json:"fail_first_attempts"`
+	StrictOnline bool `json:"strict_online"`
+	IsActive     bool `json:"is_active"`
+}
+
+func (GismtRepo) EnsureSettings(ctx context.Context, db DBTX, orgID int64) {
+	_, _ = db.Exec(ctx, `INSERT INTO gismt_settings(organization_id) VALUES($1)
+		ON CONFLICT (organization_id, provider) DO NOTHING`, orgID)
+}
+
+func (GismtRepo) GetSettings(ctx context.Context, db DBTX, orgID int64) (GismtSettings, error) {
+	var s GismtSettings
+	err := db.QueryRow(ctx, `
+		SELECT auto_send_enabled, max_retries, fail_first_attempts, strict_online, is_active
+		FROM gismt_settings WHERE organization_id=$1 AND is_active LIMIT 1`, orgID).
+		Scan(&s.AutoSend, &s.MaxRetries, &s.FailFirst, &s.StrictOnline, &s.IsActive)
+	return s, err
+}
+
+func (GismtRepo) PatchSettings(ctx context.Context, db DBTX, orgID int64, raw map[string]interface{}) {
+	if v, ok := raw["fail_first_attempts"].(float64); ok {
+		_, _ = db.Exec(ctx, `UPDATE gismt_settings SET fail_first_attempts=$1 WHERE organization_id=$2`, int(v), orgID)
+	}
+	if v, ok := raw["auto_send_enabled"].(bool); ok {
+		_, _ = db.Exec(ctx, `UPDATE gismt_settings SET auto_send_enabled=$1 WHERE organization_id=$2`, v, orgID)
+	}
+	if v, ok := raw["strict_online"].(bool); ok {
+		_, _ = db.Exec(ctx, `UPDATE gismt_settings SET strict_online=$1 WHERE organization_id=$2`, v, orgID)
+	}
+}
+
+// StrictOnline включён ли строгий режим (продажа маркировки только с реальным провайдером).
+func (GismtRepo) StrictOnline(ctx context.Context, db DBTX, orgID int64) bool {
+	var strict bool
+	_ = db.QueryRow(ctx, `SELECT COALESCE(strict_online, FALSE) FROM gismt_settings
+		WHERE organization_id=$1 AND is_active LIMIT 1`, orgID).Scan(&strict)
+	return strict
+}
+
 func (GismtRepo) Complete(ctx context.Context, db DBTX, id int64, attempt int) error {
 	_, err := db.Exec(ctx, `
 		UPDATE gismt_queue SET send_attempt=$1, last_attempt_at=NOW(), status='COMPLETED',

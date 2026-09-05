@@ -24,6 +24,7 @@ type ReceiptService struct {
 	Products  repository.ProductRepo
 	Balances  repository.BalanceRepo
 	Marking   repository.MarkingRepo
+	Gismt     repository.GismtRepo
 	Notify    repository.NotifyRepo
 	Ofd       repository.OfdRepo
 	Audit     repository.AuditRepo
@@ -188,6 +189,9 @@ func (s *ReceiptService) ResolveItems(ctx context.Context, db repository.DBTX, o
 		}
 		var codeIDs []int64
 		if p.Marked {
+			if err := s.requireOnlineMarking(ctx, db, org); err != nil {
+				return nil, err
+			}
 			if len(it.MarkingCodes) != int(it.Quantity) {
 				return nil, BadRequest("marked product needs one code per unit")
 			}
@@ -550,4 +554,19 @@ func (s *ReceiptService) activeCode(ctx context.Context, orgID int64) (string, e
 		return code, nil
 	}
 	return "", Conflict("no active OFD provider")
+}
+
+// requireOnlineMarking: в строгом режиме продажа маркировки требует активного
+// GISMT_TRUEAPI. По умолчанию (strict off) — без ограничений.
+func (s *ReceiptService) requireOnlineMarking(ctx context.Context, db repository.DBTX, org int64) error {
+	if !s.Gismt.StrictOnline(ctx, db, org) {
+		return nil
+	}
+	creds, enabled, found := s.IntRepo.Get(ctx, db, org, "GISMT_TRUEAPI")
+	if found && enabled {
+		if p := s.Reg.ByCode("GISMT_TRUEAPI"); p != nil && p.IsConfigured(creds) {
+			return nil
+		}
+	}
+	return Conflict("marking online check required: configure GISMT_TRUEAPI")
 }

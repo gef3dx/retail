@@ -6,15 +6,19 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"retail-backend/internal/model"
+	"retail-backend/internal/provider"
 	"retail-backend/internal/repository"
 	"retail-backend/internal/store"
 )
 
 // MarkingService — пул кодов, проверка, списание, очередь ГИС МТ.
 type MarkingService struct {
-	Store *store.Store
-	Codes repository.CodesRepo
-	Audit repository.AuditRepo
+	Store   *store.Store
+	Reg     *provider.Registry
+	IntRepo repository.IntegrationRepo
+	Codes   repository.CodesRepo
+	Gismt   repository.GismtRepo
+	Audit   repository.AuditRepo
 }
 
 type RegisterCodesInput struct {
@@ -133,4 +137,36 @@ func (s *MarkingService) Queue(ctx context.Context, orgID int64, status string) 
 
 func (s *MarkingService) Log(ctx context.Context, orgID int64, itype string) []model.IntegrationLogEntry {
 	return s.Codes.Log(ctx, s.Store.PG, orgID, itype)
+}
+
+func (s *MarkingService) GetSettings(ctx context.Context, orgID int64) (repository.GismtSettings, error) {
+	if orgID == 0 {
+		return repository.GismtSettings{}, BadRequest("org_id required")
+	}
+	s.Gismt.EnsureSettings(ctx, s.Store.PG, orgID)
+	st, err := s.Gismt.GetSettings(ctx, s.Store.PG, orgID)
+	if err != nil {
+		return st, NotFound("no settings")
+	}
+	return st, nil
+}
+
+func (s *MarkingService) PatchSettings(ctx context.Context, orgID int64, raw map[string]interface{}) error {
+	if orgID == 0 {
+		return BadRequest("org_id required")
+	}
+	s.Gismt.EnsureSettings(ctx, s.Store.PG, orgID)
+	s.Gismt.PatchSettings(ctx, s.Store.PG, orgID, raw)
+	return nil
+}
+
+// ActiveProvider возвращает активного ГИС МТ провайдера (без секретов).
+func (s *MarkingService) ActiveProvider(ctx context.Context, orgID int64) map[string]string {
+	statuses := s.IntRepo.Statuses(ctx, s.Store.PG, s.Reg, orgID)
+	if code := s.Reg.ActiveFor("GISMT", statuses); code != "" {
+		if p := s.Reg.ByCode(code); p != nil {
+			return map[string]string{"code": code, "name": p.Name()}
+		}
+	}
+	return map[string]string{"code": "", "name": "not configured"}
 }

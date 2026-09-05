@@ -21,6 +21,22 @@ export function Marking() {
     queryFn: async () => (await api.get('/marking/queue', { params: { org_id: 1 } })).data,
     refetchInterval: 4000,
   });
+  const prov = useQuery({
+    queryKey: ['gismtprov'],
+    queryFn: async () => (await api.get('/gismt-active', { params: { org_id: 1 } })).data,
+    retry: false,
+  });
+  const settings = useQuery({
+    queryKey: ['gismtset'],
+    queryFn: async () => (await api.get('/gismt-settings', { params: { org_id: 1 } })).data,
+    retry: false,
+  });
+  const strict = useMutation({
+    mutationFn: async (v: boolean) =>
+      (await api.patch('/gismt-settings', { strict_online: v }, { params: { org_id: 1 } })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['gismtset'] }),
+    onError: (e: any) => setMsg(e.response?.data?.error ?? 'settings failed'),
+  });
 
   const register = useMutation({
     mutationFn: async () =>
@@ -55,6 +71,15 @@ export function Marking() {
       <h1 className="text-xl font-bold col-span-2">
         Маркировка «Честный знак» <Link className="underline text-sm font-normal ml-2" to="/me">Кабинет</Link>
       </h1>
+      <div className="col-span-2 flex items-center gap-3 text-sm border rounded p-2">
+        <span>ГИС МТ: <b>{prov.data?.code === 'GISMT_TRUEAPI' ? 'True API' : prov.data?.code ? 'эмулятор' : '—'}</b></span>
+        <label className="flex items-center gap-1" title="Блокировать продажу маркировки без настроенного True API">
+          <input type="checkbox" checked={!!settings.data?.strict_online}
+            onChange={(e) => strict.mutate(e.target.checked)} />
+          строгий онлайн-режим
+        </label>
+        <Link className="underline text-xs ml-auto" to="/integrations">ключи →</Link>
+      </div>
 
       <div className="border rounded p-4">
         <h2 className="font-bold mb-2 text-sm">Регистрация кодов</h2>
