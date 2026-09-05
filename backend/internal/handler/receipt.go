@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"retail-backend/internal/middleware"
+	"retail-backend/internal/notify"
 	"retail-backend/internal/store"
 )
 
@@ -391,12 +392,12 @@ func lineQty(lines []line) map[int64]float64 {
 }
 
 func (h *Receipt) insertReceipt(c echo.Context, tx pgx.Tx, org, reg, shift int64, rtype string,
-	lines []line, payType string, payCash, payCard float64, baseID *int64, corrReason string) (int64, string, error) {
+	lines []line, payType string, payCash, payCard float64, baseID *int64, corrReason string) (int64, string, float64, error) {
 	ctx := c.Request().Context()
 	total, vatSum, marked := totals(lines)
 	paid := round2(payCash + payCard)
 	if paid < total {
-		return 0, "", echo.NewHTTPError(http.StatusBadRequest, "paid < total")
+		return 0, "", 0, echo.NewHTTPError(http.StatusBadRequest, "paid < total")
 	}
 	change := round2(paid - total)
 	var lastNum int64
@@ -411,7 +412,7 @@ func (h *Receipt) insertReceipt(c echo.Context, tx pgx.Tx, org, reg, shift int64
 		VALUES($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''),$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
 		org, shift, reg, x.UserID, number, rtype, baseID, corrReason,
 		total, vatSum, payType, payCash, payCard, change, marked).Scan(&rid); err != nil {
-		return 0, "", err
+		return 0, "", 0, err
 	}
 	for _, l := range lines {
 		t := round2(l.price*l.qty - l.discount)
@@ -422,12 +423,12 @@ func (h *Receipt) insertReceipt(c echo.Context, tx pgx.Tx, org, reg, shift int64
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 			rid, l.productID, l.name, l.sku, l.qty, l.price, l.vat,
 			round2(t*l.vat/100), t, l.discount, l.marked, l.attr, l.method); err != nil {
-			return 0, "", err
+			return 0, "", 0, err
 		}
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO ofd_send_status(receipt_id, organization_id) VALUES($1,$2)`, rid, org); err != nil {
-		return 0, "", err
+		return 0, "", 0, err
 	}
 	// Списание кодов маркировки (этап 5).
 	var allCodes []int64
@@ -436,10 +437,10 @@ func (h *Receipt) insertReceipt(c echo.Context, tx pgx.Tx, org, reg, shift int64
 	}
 	if len(allCodes) > 0 {
 		if err := withdrawLocked(tx, ctx, org, rid, x.UserID, allCodes); err != nil {
-			return 0, "", err
+			return 0, "", 0, err
 		}
 	}
-	return rid, number, nil
+	return rid, number, total, nil
 }
 
 func (h *Receipt) Sell(c echo.Context) error {
@@ -450,8 +451,10 @@ func (h *Receipt) Sell(c echo.Context) error {
 	if b.PaymentType == "" {
 		b.PaymentType = "CASH"
 	}
+	x := middleware.CtxOf(c)
 	var rid int64
 	var number string
+	var saleTotal float64
 	err := h.Store.Tx(c.Request().Context(), func(tx pgx.Tx) error {
 		ctx := c.Request().Context()
 		var org int64
@@ -472,8 +475,18 @@ func (h *Receipt) Sell(c echo.Context) error {
 				return err
 			}
 		}
-		rid, number, err = h.insertReceipt(c, tx, org, b.CashRegisterID, shift, "SALE", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, nil, "")
-		return err
+		rid, number, saleTotal, err = h.insertReceipt(c, tx, org, b.CashRegisterID, shift, "SALE", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, nil, "")
+		if err != nil {
+			return err
+		}
+		notify.EnqueueTx(tx, ctx, org, "RECEIPT_SOLD", []string{"WEB"},
+			notify.RecipientOf(ctx, h.Store, x.UserID), "", "",
+			map[string]interface{}{"receipt_number": number, "total_amount": saleTotal,
+				"payment_type": b.PaymentType, "fiscal_doc": ""}, "receipt", &rid, 5)
+		if warehouse != nil {
+			notify.CheckLowStockTx(tx, ctx, h.Store, org, *warehouse)
+		}
+		return nil
 	})
 	if err != nil {
 		if he, ok := err.(*echo.HTTPError); ok {
@@ -481,7 +494,6 @@ func (h *Receipt) Sell(c echo.Context) error {
 		}
 		return c.JSON(http.StatusConflict, map[string]string{"error": "sell failed"})
 	}
-	x := middleware.CtxOf(c)
 	h.Store.Audit(c.Request().Context(), &x.UserID, "receipt.sell", "Пробитие чека "+number, "receipt", &rid, b, clientIP(c), c.Request().UserAgent(), true, "")
 	return c.JSON(http.StatusCreated, map[string]interface{}{"id": rid, "receipt_number": number})
 }
@@ -574,7 +586,7 @@ func (h *Receipt) Return(c echo.Context) error {
 			lines = append(lines, line{it.ProductID, name, sku, it.Quantity, price, vat, 0, marked, "GOOD", "FULL", nil})
 		}
 		var err error
-		rid, number, err = h.insertReceipt(c, tx, org, reg, shift, "RETURN", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, &b.BaseReceiptID, "")
+		rid, number, _, err = h.insertReceipt(c, tx, org, reg, shift, "RETURN", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, &b.BaseReceiptID, "")
 		if err != nil {
 			return err
 		}
@@ -621,8 +633,10 @@ func (h *Receipt) Correction(c echo.Context) error {
 	if b.PaymentType == "" {
 		b.PaymentType = "CASH"
 	}
+	x := middleware.CtxOf(c)
 	var rid int64
 	var number string
+	var saleTotal float64
 	err := h.Store.Tx(c.Request().Context(), func(tx pgx.Tx) error {
 		ctx := c.Request().Context()
 		var org int64
@@ -643,8 +657,18 @@ func (h *Receipt) Correction(c echo.Context) error {
 				return err
 			}
 		}
-		rid, number, err = h.insertReceipt(c, tx, org, b.CashRegisterID, shift, "CORRECTION", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, nil, b.Reason)
-		return err
+		rid, number, saleTotal, err = h.insertReceipt(c, tx, org, b.CashRegisterID, shift, "CORRECTION", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, nil, b.Reason)
+		if err != nil {
+			return err
+		}
+		notify.EnqueueTx(tx, ctx, org, "RECEIPT_SOLD", []string{"WEB"},
+			notify.RecipientOf(ctx, h.Store, x.UserID), "", "",
+			map[string]interface{}{"receipt_number": number, "total_amount": saleTotal,
+				"payment_type": b.PaymentType, "fiscal_doc": ""}, "receipt", &rid, 5)
+		if warehouse != nil {
+			notify.CheckLowStockTx(tx, ctx, h.Store, org, *warehouse)
+		}
+		return nil
 	})
 	if err != nil {
 		if he, ok := err.(*echo.HTTPError); ok {

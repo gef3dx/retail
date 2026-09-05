@@ -10,6 +10,7 @@ import (
 	"retail-backend/internal/auth"
 	"retail-backend/internal/middleware"
 	"retail-backend/internal/model"
+	"retail-backend/internal/notify"
 	"retail-backend/internal/store"
 )
 
@@ -73,8 +74,8 @@ func (a *Auth) Register(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "hash failed"})
 	}
 	var uid int64
+	var orgID int64
 	err = a.Store.Tx(c.Request().Context(), func(tx pgx.Tx) error {
-		var orgID int64
 		if err := tx.QueryRow(c.Request().Context(), `
 			INSERT INTO organization(inn,kpp,full_name,short_name) VALUES($1,$2,$3,$3) RETURNING id`,
 			r.OrgINN, r.OrgKPP, r.OrgName).Scan(&orgID); err != nil {
@@ -106,6 +107,7 @@ func (a *Auth) Register(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusConflict, map[string]string{"error": "register failed (duplicate?)"})
 	}
+	notify.EnsureSettings(c.Request().Context(), a.Store, orgID)
 	access, refresh, _, _, err := tokensFor(a, c, uid, r.Username)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token failed"})

@@ -4,10 +4,12 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"retail-backend/internal/middleware"
+	"retail-backend/internal/notify"
 	"retail-backend/internal/store"
 )
 
@@ -284,10 +286,14 @@ func (h *Stock) PostReceiptDoc(c echo.Context) error {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	err := h.Store.Tx(c.Request().Context(), func(tx pgx.Tx) error {
 		ctx := c.Request().Context()
-		var wh int64
+		var wh, org int64
 		var posted bool
-		if err := tx.QueryRow(ctx, `SELECT warehouse_id, is_posted FROM receipt_document WHERE id=$1 FOR UPDATE`, id).
-			Scan(&wh, &posted); err != nil {
+		var number, whName string
+		if err := tx.QueryRow(ctx, `
+			SELECT d.warehouse_id, d.is_posted, d.organization_id, d.document_number, w.name
+			FROM receipt_document d JOIN warehouse w ON w.id=d.warehouse_id
+			WHERE d.id=$1 FOR UPDATE OF d`, id).
+			Scan(&wh, &posted, &org, &number, &whName); err != nil {
 			return echo.NewHTTPError(http.StatusNotFound, "no document")
 		}
 		if posted {
@@ -298,17 +304,24 @@ func (h *Stock) PostReceiptDoc(c echo.Context) error {
 			return err
 		}
 		items := map[int64]float64{}
+		totalQty := 0.0
 		for rows.Next() {
 			var pid int64
 			var qty float64
 			_ = rows.Scan(&pid, &qty)
 			items[pid] += qty
+			totalQty += qty
 		}
 		rows.Close()
 		if err := addLocked(tx, ctx, wh, items); err != nil {
 			return err
 		}
 		_, _ = tx.Exec(ctx, `UPDATE receipt_document SET is_posted=TRUE, posted_at=NOW() WHERE id=$1`, id)
+		data := map[string]interface{}{"doc_number": number, "total_qty": totalQty, "warehouse": whName}
+		for _, uid := range notify.Admins(ctx, h.Store, org) {
+			notify.EnqueueTx(tx, ctx, org, "STOCK_ARRIVED", []string{"WEB"},
+				notify.RecipientOf(ctx, h.Store, uid), "", "", data, "receipt_doc", &id, 5)
+		}
 		return nil
 	})
 	if err != nil {
@@ -429,6 +442,11 @@ func (h *Stock) CreateOrder(c echo.Context) error {
 				return err
 			}
 		}
+		notify.EnqueueTx(tx, ctx, org, "ORDER_CREATED", []string{"WEB", "EMAIL"},
+			notify.RecipientOf(ctx, h.Store, x.UserID), "", "",
+			map[string]interface{}{"order_number": number,
+				"order_date": time.Now().Format("2006-01-02"),
+				"total_amount": round2(total)}, "order", &id, 5)
 		return nil
 	})
 	if err != nil {
@@ -505,10 +523,10 @@ func (h *Stock) ConfirmOrder(c echo.Context) error {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	err := h.Store.Tx(c.Request().Context(), func(tx pgx.Tx) error {
 		ctx := c.Request().Context()
-		var wh int64
-		var st string
-		if err := tx.QueryRow(ctx, `SELECT warehouse_id, status FROM sales_order WHERE id=$1 FOR UPDATE`, id).
-			Scan(&wh, &st); err != nil {
+		var wh, manager int64
+		var st, number string
+		if err := tx.QueryRow(ctx, `SELECT warehouse_id, manager_id, status, order_number FROM sales_order WHERE id=$1 FOR UPDATE`, id).
+			Scan(&wh, &manager, &st, &number); err != nil {
 			return echo.NewHTTPError(http.StatusNotFound, "no order")
 		}
 		if st != "DRAFT" {
@@ -538,6 +556,12 @@ func (h *Stock) ConfirmOrder(c echo.Context) error {
 			_, _ = tx.Exec(ctx, `UPDATE sales_order_line SET reserved_quantity=$2 WHERE id=$1`, r.lid, r.qty)
 		}
 		_, _ = tx.Exec(ctx, `UPDATE sales_order SET status='CONFIRMED' WHERE id=$1`, id)
+		var org int64
+		_ = tx.QueryRow(ctx, `SELECT organization_id FROM sales_order WHERE id=$1`, id).Scan(&org)
+		notify.EnqueueTx(tx, ctx, org, "ORDER_STATUS_CHANGED", []string{"WEB", "EMAIL"},
+			notify.RecipientOf(ctx, h.Store, manager), "", "",
+			map[string]interface{}{"order_number": number, "new_status": "CONFIRMED"}, "order", &id, 5)
+		notify.CheckLowStockTx(tx, ctx, h.Store, org, wh)
 		return nil
 	})
 	if err != nil {
@@ -553,10 +577,11 @@ func (h *Stock) CancelOrder(c echo.Context) error {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	err := h.Store.Tx(c.Request().Context(), func(tx pgx.Tx) error {
 		ctx := c.Request().Context()
-		var wh int64
-		var st string
-		if err := tx.QueryRow(ctx, `SELECT warehouse_id, status FROM sales_order WHERE id=$1 FOR UPDATE`, id).
-			Scan(&wh, &st); err != nil {
+		var wh, manager int64
+		var st, number string
+		var org int64
+		if err := tx.QueryRow(ctx, `SELECT warehouse_id, manager_id, status, order_number, organization_id FROM sales_order WHERE id=$1 FOR UPDATE`, id).
+			Scan(&wh, &manager, &st, &number, &org); err != nil {
 			return echo.NewHTTPError(http.StatusNotFound, "no order")
 		}
 		if st == "CANCELED" || st == "COMPLETED" {
@@ -580,6 +605,9 @@ func (h *Stock) CancelOrder(c echo.Context) error {
 			}
 		}
 		_, _ = tx.Exec(ctx, `UPDATE sales_order SET status='CANCELED' WHERE id=$1`, id)
+		notify.EnqueueTx(tx, ctx, org, "ORDER_STATUS_CHANGED", []string{"WEB", "EMAIL"},
+			notify.RecipientOf(ctx, h.Store, manager), "", "",
+			map[string]interface{}{"order_number": number, "new_status": "CANCELED"}, "order", &id, 5)
 		return nil
 	})
 	if err != nil {
@@ -722,6 +750,13 @@ func (h *Stock) CreateShipment(c echo.Context) error {
 			ns = "COMPLETED"
 		}
 		_, _ = tx.Exec(ctx, `UPDATE sales_order SET status=$2 WHERE id=$1`, b.OrderID, ns)
+		var manager int64
+		var orderNumber string
+		_ = tx.QueryRow(ctx, `SELECT manager_id, order_number FROM sales_order WHERE id=$1`, b.OrderID).Scan(&manager, &orderNumber)
+		notify.EnqueueTx(tx, ctx, org, "ORDER_STATUS_CHANGED", []string{"WEB", "EMAIL"},
+			notify.RecipientOf(ctx, h.Store, manager), "", "",
+			map[string]interface{}{"order_number": orderNumber, "new_status": ns}, "order", &b.OrderID, 5)
+		notify.CheckLowStockTx(tx, ctx, h.Store, org, wh)
 		return nil
 	})
 	if err != nil {
