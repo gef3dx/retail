@@ -231,6 +231,8 @@ type sellItem struct {
 	PayMethod string   `json:"ffd_payment_method"`
 	// Коды маркировки (обязательны для маркированного товара, по одному на единицу).
 	MarkingCodes []string `json:"marking_codes"`
+	// Привязка услуги к бронированию (оплата забронированной услуги).
+	BookingID *int64 `json:"booking_id"`
 }
 
 type sellReq struct {
@@ -253,6 +255,7 @@ type line struct {
 	attr      string
 	method    string
 	codeIDs   []int64
+	bookingID *int64
 }
 
 // lockCodes проверяет коды маркировки (AVAILABLE, тот же товар и организация) и лочит их.
@@ -365,7 +368,24 @@ func (h *Receipt) resolveItems(c echo.Context, tx pgx.Tx, org int64, in []sellIt
 				return nil, err
 			}
 		}
-		out = append(out, line{id, name, sku, it.Quantity, round2(price), vat, round2(it.Discount), marked, attr, method, codeIDs})
+		if it.BookingID != nil {
+			// Бронь должна быть живая, той же организации и содержать этот товар.
+			var borg int64
+			var bst string
+			var bcnt int
+			if err := tx.QueryRow(c.Request().Context(), `
+				SELECT b.organization_id, b.status_code,
+				       (SELECT COUNT(*) FROM service_booking_item bi
+				        WHERE bi.booking_id=b.id AND bi.product_id=$2)
+				FROM service_booking b WHERE b.id=$1`, *it.BookingID, id).
+				Scan(&borg, &bst, &bcnt); err != nil || borg != org || bcnt == 0 {
+				return nil, echo.NewHTTPError(http.StatusBadRequest, "bad booking link")
+			}
+			if bst == "CANCELED" || bst == "NO_SHOW" || bst == "COMPLETED" {
+				return nil, echo.NewHTTPError(http.StatusBadRequest, "booking is closed")
+			}
+		}
+		out = append(out, line{id, name, sku, it.Quantity, round2(price), vat, round2(it.Discount), marked, attr, method, codeIDs, it.BookingID})
 	}
 	return out, nil
 }
@@ -416,14 +436,21 @@ func (h *Receipt) insertReceipt(c echo.Context, tx pgx.Tx, org, reg, shift int64
 	}
 	for _, l := range lines {
 		t := round2(l.price*l.qty - l.discount)
-		if _, err := tx.Exec(ctx, `
+		var itemID int64
+		if err := tx.QueryRow(ctx, `
 			INSERT INTO sales_receipt_item(receipt_id, product_id, product_name, product_sku,
 				quantity, price, vat_rate, vat_amount, total_amount, discount, is_marked,
 				ffd_item_attribute, ffd_payment_method)
-			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
 			rid, l.productID, l.name, l.sku, l.qty, l.price, l.vat,
-			round2(t*l.vat/100), t, l.discount, l.marked, l.attr, l.method); err != nil {
+			round2(t*l.vat/100), t, l.discount, l.marked, l.attr, l.method).Scan(&itemID); err != nil {
 			return 0, "", 0, err
+		}
+		if l.bookingID != nil {
+			if _, err := tx.Exec(ctx, `
+				UPDATE service_booking SET sales_receipt_item_id=$2 WHERE id=$1`, *l.bookingID, itemID); err != nil {
+				return 0, "", 0, err
+			}
 		}
 	}
 	if _, err := tx.Exec(ctx, `
@@ -583,7 +610,7 @@ func (h *Receipt) Return(c echo.Context) error {
 					retCodes = append(retCodes, cid)
 				}
 			}
-			lines = append(lines, line{it.ProductID, name, sku, it.Quantity, price, vat, 0, marked, "GOOD", "FULL", nil})
+			lines = append(lines, line{it.ProductID, name, sku, it.Quantity, price, vat, 0, marked, "GOOD", "FULL", nil, nil})
 		}
 		var err error
 		rid, number, _, err = h.insertReceipt(c, tx, org, reg, shift, "RETURN", lines, b.PaymentType, b.PaymentCash, b.PaymentCard, &b.BaseReceiptID, "")

@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"retail-backend/internal/config"
+	"retail-backend/internal/booking"
 	"retail-backend/internal/gismt"
 	"retail-backend/internal/handler"
 	"retail-backend/internal/notify"
@@ -57,6 +58,7 @@ func main() {
 	markH := &handler.Marking{Store: st}
 	notifyH := &handler.Notify{Store: st}
 	stockH := &handler.Stock{Store: st}
+	bookH := &handler.Booking{Store: st}
 
 	// Фоновый воркер ОФД (mock). Интервал через env, по умолчанию 2с для живости кассы.
 	ofdEvery := 2 * time.Second
@@ -70,6 +72,13 @@ func main() {
 	go ofd.Worker(ofdCtx, st, ofdEvery)
 	go gismt.Worker(ofdCtx, st, ofdEvery)
 	go notify.Worker(ofdCtx, st, ofdEvery)
+	remindEvery := 60 * time.Second
+	if v := os.Getenv("BOOKING_REMIND_SEC"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			remindEvery = time.Duration(n) * time.Second
+		}
+	}
+	go booking.Worker(ofdCtx, st, remindEvery)
 
 	// Публичное
 	e.POST("/api/v1/auth/register", authH.Register)
@@ -141,6 +150,21 @@ func main() {
 	api.POST("/orders/:id/cancel", stockH.CancelOrder, rbac.RequirePermission("document:update"))
 	api.POST("/shipments", stockH.CreateShipment, rbac.RequirePermission("document:post"))
 	api.GET("/shipments", stockH.ListShipments, rbac.RequirePermission("document:read"))
+
+	// Услуги и бронирование (этап 8)
+	api.GET("/resources", bookH.ListResources, rbac.RequirePermission("document:read"))
+	api.POST("/resources", bookH.CreateResource, rbac.RequirePermission("document:create"))
+	api.GET("/resources/:id/schedule", bookH.GetSchedule, rbac.RequirePermission("document:read"))
+	api.PUT("/resources/:id/schedule", bookH.PutSchedule, rbac.RequirePermission("document:update"))
+	api.POST("/resources/:id/exceptions", bookH.AddException, rbac.RequirePermission("document:update"))
+	api.GET("/resources/:id/slots", bookH.Slots, rbac.RequirePermission("document:read"))
+	api.POST("/bookings", bookH.Create, rbac.RequirePermission("document:create"))
+	api.GET("/bookings", bookH.List, rbac.RequirePermission("document:read"))
+	api.GET("/bookings/:id", bookH.Get, rbac.RequirePermission("document:read"))
+	api.POST("/bookings/:id/status", bookH.SetStatus, rbac.RequirePermission("document:update"))
+	api.POST("/bookings/:id/link-receipt", bookH.LinkReceipt, rbac.RequirePermission("document:update"))
+	api.POST("/products/:id/resources", bookH.LinkProductResource, rbac.RequirePermission("product:update"))
+	api.GET("/products/:id/resources", bookH.ListProductResources, rbac.RequirePermission("product:read"))
 
 	// Уведомления (этап 7)
 	api.GET("/notify/inbox", notifyH.Inbox)
