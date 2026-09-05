@@ -17,6 +17,7 @@ import { Notify } from './pages/Notify';
 import { Integrations } from './pages/Integrations';
 import { Services } from './pages/Services';
 import { Bookings } from './pages/Bookings';
+import { Delivery } from './pages/Delivery';
 import { useAuth } from './store';
 import './index.css';
 
@@ -48,6 +49,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/integrations" element={<Guard><Integrations /></Guard>} />
           <Route path="/services" element={<Guard><Services /></Guard>} />
           <Route path="/bookings" element={<Guard><Bookings /></Guard>} />
+          <Route path="/delivery" element={<Guard><Delivery /></Guard>} />
           <Route path="*" element={<Navigate to="/me" replace />} />
         </Routes>
       </BrowserRouter>

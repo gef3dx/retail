@@ -83,6 +83,11 @@ func main() {
 	intH := &handler.Integrations{Svc: &service.IntegrationService{
 		Store: st, Regs: repository.IntegrationRepo{}, Reg: provider.DefaultRegistry(),
 	}}
+	delH := &handler.Delivery{Svc: &service.DeliveryService{
+		Store: st, Reg: provider.DefaultRegistry(), IntRepo: repository.IntegrationRepo{},
+		Zones: repository.ZoneRepo{}, Couriers: repository.CourierRepo{},
+		Deliveries: repository.DeliveryRepo{}, Notify: repository.NotifyRepo{}, Audit: repository.AuditRepo{},
+	}}
 	bookH := &handler.Booking{Svc: &service.BookingService{
 		Store: st, Resources: repository.ResourceRepo{}, Bookings: repository.BookingRepo{}, Notify: repository.NotifyRepo{},
 	}}
@@ -198,6 +203,19 @@ func main() {
 	api.POST("/bookings/:id/link-receipt", bookH.LinkReceipt, rbac.RequirePermission("document:update"))
 	api.POST("/products/:id/resources", bookH.LinkProductResource, rbac.RequirePermission("product:update"))
 	api.GET("/products/:id/resources", bookH.ListProductResources, rbac.RequirePermission("product:read"))
+
+	// Доставка (этап 14)
+	api.GET("/delivery/zones", delH.ListZones, rbac.RequirePermission("document:read"))
+	api.POST("/delivery/zones", delH.CreateZone, rbac.RequirePermission("document:create"))
+	api.GET("/delivery/couriers", delH.ListCouriers, rbac.RequirePermission("document:read"))
+	api.POST("/delivery/couriers", delH.CreateCourier, rbac.RequirePermission("document:create"))
+	api.POST("/delivery/couriers/:id/schedule", delH.SetCourierSchedule, rbac.RequirePermission("document:update"))
+	api.POST("/deliveries", delH.Create, rbac.RequirePermission("document:create"))
+	api.GET("/deliveries", delH.List, rbac.RequirePermission("document:read"))
+	api.GET("/deliveries/:id", delH.Get, rbac.RequirePermission("document:read"))
+	api.POST("/deliveries/:id/assign", delH.Assign, rbac.RequirePermission("document:update"))
+	api.POST("/deliveries/:id/accept", delH.Accept, rbac.RequirePermission("document:update"))
+	api.POST("/deliveries/:id/status", delH.SetStatus, rbac.RequirePermission("document:update"))
 
 	// Интеграции: провайдеры и ключи (этап 10)
 	api.GET("/integrations", intH.List, rbac.RequirePermission("organization:read"))
