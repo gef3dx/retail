@@ -1,4 +1,4 @@
-package handler
+package service
 
 import (
 	"context"
@@ -9,13 +9,12 @@ import (
 )
 
 // SeedAdmin создает SUPER_ADMIN из env, если пользователей еще нет.
-// Пароль хешируется bcrypt — в отличие от захардкоженного хеша в sql/04.
-func SeedAdmin(ctx context.Context, s *store.Store, email, password string) {
-	if s.PG == nil {
+func SeedAdmin(ctx context.Context, st *store.Store, email, password string) {
+	if st.PG == nil {
 		return
 	}
 	var count int
-	if err := s.PG.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil || count > 0 {
+	if err := st.PG.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil || count > 0 {
 		return
 	}
 	hash, err := auth.HashPassword(password)
@@ -24,14 +23,14 @@ func SeedAdmin(ctx context.Context, s *store.Store, email, password string) {
 		return
 	}
 	var uid int64
-	err = s.PG.QueryRow(ctx, `
+	err = st.PG.QueryRow(ctx, `
 		INSERT INTO users(username,email,password_hash,first_name,last_name) VALUES('superadmin',$1,$2,'Super','Admin') RETURNING id`,
 		email, hash).Scan(&uid)
 	if err != nil {
 		slog.Error("seed admin failed", "err", err)
 		return
 	}
-	_, _ = s.PG.Exec(ctx, `
+	_, _ = st.PG.Exec(ctx, `
 		INSERT INTO user_roles(user_id, role_id) SELECT $1, r.id FROM roles r WHERE r.name='SUPER_ADMIN' ON CONFLICT DO NOTHING`, uid)
 	slog.Info("seeded superadmin", "email", email)
 }
