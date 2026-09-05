@@ -10,6 +10,8 @@ type User struct {
 	FirstName     string    `json:"first_name"`
 	LastName      string    `json:"last_name"`
 	Phone         *string   `json:"phone,omitempty"`
+	Telegram      *string   `json:"telegram_chat_id,omitempty"`
+	Push          *string   `json:"push_token,omitempty"`
 	IsActive      bool      `json:"is_active"`
 	Roles         []string  `json:"roles,omitempty"`
 	Organizations []int64   `json:"organizations,omitempty"`

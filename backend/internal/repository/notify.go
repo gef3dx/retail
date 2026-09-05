@@ -15,8 +15,8 @@ type NotifyRepo struct{}
 func (NotifyRepo) RecipientOf(ctx context.Context, db DBTX, uid int64) model.Recipient {
 	r := model.Recipient{UserID: uid}
 	_ = db.QueryRow(ctx, `
-		SELECT first_name || ' ' || last_name, email, phone FROM users WHERE id=$1`, uid).
-		Scan(&r.Name, &r.Email, &r.Phone)
+		SELECT first_name || ' ' || last_name, email, phone, telegram_chat_id, push_token FROM users WHERE id=$1`, uid).
+		Scan(&r.Name, &r.Email, &r.Phone, &r.Telegram, &r.Push)
 	return r
 }
 
@@ -293,6 +293,7 @@ type DueJob struct {
 	Type, Channel              string
 	Name, Email, Phone         *string
 	UserID                     *int64
+	Telegram, Push             *string
 	Subject, Body              *string
 	TemplateData               []byte
 	Entity                     *string
@@ -305,10 +306,12 @@ func (NotifyRepo) PollDue(ctx context.Context, db DBTX) []DueJob {
 	rows, err := db.Query(ctx, `
 		SELECT q.id, q.organization_id, q.notification_type_code, q.channel_code,
 		       q.recipient_name, q.recipient_email, q.recipient_phone, q.recipient_user_id,
+		       u.telegram_chat_id, u.push_token,
 		       q.subject, q.body, q.template_data, q.entity_type, q.entity_id,
 		       q.attempt_count, COALESCE(st.max_attempts, 3), COALESCE(st.fail_first_attempts, 0),
 		       COALESCE(st.enabled, TRUE)
 		FROM notification_queue q
+		LEFT JOIN users u ON u.id = q.recipient_user_id
 		LEFT JOIN notify_settings st ON st.organization_id = q.organization_id
 		WHERE q.status IN ('PENDING','RETRY') AND q.scheduled_at <= NOW()
 		ORDER BY q.priority DESC, q.id LIMIT 20`)
@@ -320,10 +323,11 @@ func (NotifyRepo) PollDue(ctx context.Context, db DBTX) []DueJob {
 	for rows.Next() {
 		var j DueJob
 		if err := rows.Scan(&j.ID, &j.OrgID, &j.Type, &j.Channel, &j.Name, &j.Email, &j.Phone,
-			&j.UserID, &j.Subject, &j.Body, &j.TemplateData, &j.Entity, &j.EntityID,
+			&j.UserID, &j.Telegram, &j.Push, &j.Subject, &j.Body, &j.TemplateData, &j.Entity, &j.EntityID,
 			&j.Attempt, &j.MaxRet, &j.FailFirst, &j.Enabled); err != nil {
 			continue
 		}
+		// Telegram/push берутся из актуального профиля пользователя.
 		out = append(out, j)
 	}
 	return out
@@ -335,6 +339,15 @@ func (NotifyRepo) FailMark(ctx context.Context, db DBTX, id int64, attempt, maxR
 			status=CASE WHEN $1::int >= $2::int THEN 'FAILED' ELSE 'RETRY' END,
 			error_message='mock: provider unavailable' WHERE id=$3`,
 		attempt, maxRet, id)
+}
+
+// MarkAttempt фиксирует попытку с произвольным текстом ошибки.
+func (NotifyRepo) MarkAttempt(ctx context.Context, db DBTX, id int64, attempt, maxRet int, msg string) {
+	_, _ = db.Exec(ctx, `
+		UPDATE notification_queue SET attempt_count=$1, last_attempt_at=NOW(),
+			status=CASE WHEN $1::int >= $2::int THEN 'FAILED' ELSE 'RETRY' END,
+			error_message=$3 WHERE id=$4`,
+		attempt, maxRet, msg, id)
 }
 
 // DrainToHistory переносит отправленное в историю и удаляет из очереди.

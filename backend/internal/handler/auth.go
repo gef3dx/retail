@@ -72,3 +72,18 @@ func (a *Auth) Me(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, u)
 }
+
+func (a *Auth) PatchMe(c echo.Context) error {
+	x := middleware.CtxOf(c)
+	var b struct {
+		Telegram *string `json:"telegram_chat_id"`
+		Push     *string `json:"push_token"`
+	}
+	if err := c.Bind(&b); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "bad body"})
+	}
+	if err := a.Svc.UpdateMe(c.Request().Context(), x.UserID, b.Telegram, b.Push); err != nil {
+		return writeErr(c, err)
+	}
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+}

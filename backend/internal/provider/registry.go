@@ -40,6 +40,10 @@ func DefaultRegistry() *Registry {
 	r.add(base{code: "PUSH_PROVIDER", name: "Push: провайдер", kind: KindNotify, keys: []KeySpec{
 		{Key: "api_key", Name: "API-ключ", Secret: true, Required: true},
 	}})
+	r.add(base{code: "WHATSAPP_GENERIC", name: "WhatsApp: HTTP-шлюз", kind: KindNotify, keys: []KeySpec{
+		{Key: "api_url", Name: "API URL", Required: true},
+		{Key: "api_key", Name: "API-ключ", Secret: true},
+	}})
 	r.add(base{code: "DELIVERY_EMULATOR", name: "Доставка: своя (эмулятор служб)", kind: KindDelivery, emulator: true})
 	r.add(base{code: "DELIVERY_CDEK", name: "Доставка: СДЭК", kind: KindDelivery, keys: []KeySpec{
 		{Key: "api_url", Name: "API URL", Required: true},
