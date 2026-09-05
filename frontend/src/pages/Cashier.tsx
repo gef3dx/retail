@@ -15,6 +15,12 @@ export function Cashier() {
   const [msg, setMsg] = useState('');
 
   const regs = useQuery({ queryKey: ['regs'], queryFn: async () => (await api.get('/registers', { params: { org_id: 1 } })).data });
+  const providers = useQuery({
+    queryKey: ['ofdprov'],
+    queryFn: async () => (await api.get('/ofd-active', { params: { org_id: 1 } })).data,
+    retry: false,
+  });
+  const ofdActive = providers.data?.code ? providers.data : null;
   const shift = useQuery({
     queryKey: ['shift', regId],
     queryFn: async () => (await api.get('/shifts/open', { params: { register_id: regId } })).data,
@@ -111,6 +117,11 @@ export function Cashier() {
           <button className="px-3 py-1 border rounded text-sm" onClick={() => closeShift.mutate()}>
             Закрыть смену (Z)
           </button>
+        )}
+        {ofdActive && (
+          <span className="text-xs px-2 rounded bg-slate-100" title={ofdActive.name}>
+            ОФД: {ofdActive.code === 'OFD_EMULATOR' ? 'эмулятор' : ofdActive.name}
+          </span>
         )}
         <Link className="underline text-sm ml-auto" to="/me">Кабинет</Link>
       </div>

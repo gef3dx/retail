@@ -357,6 +357,15 @@ func (OfdRepo) FailMark(ctx context.Context, db DBTX, id int64, attempt, maxRet 
 		attempt, maxRet, id)
 }
 
+// MarkAttempt фиксирует попытку с произвольным текстом ошибки.
+func (OfdRepo) MarkAttempt(ctx context.Context, db DBTX, id int64, attempt, maxRet int, msg string) {
+	_, _ = db.Exec(ctx, `
+		UPDATE ofd_send_status SET send_attempt=$1, last_attempt_at=NOW(),
+			status=CASE WHEN $1::int >= $2::int THEN 'FAILED' ELSE 'RETRY' END,
+			error_message=$3, updated_at=NOW() WHERE id=$4`,
+		attempt, maxRet, msg, id)
+}
+
 func (OfdRepo) Complete(ctx context.Context, db DBTX, id int64, attempt int, docNumber, sign, qr string) error {
 	_, err := db.Exec(ctx, `
 		UPDATE ofd_send_status SET send_attempt=$1, last_attempt_at=NOW(), status='COMPLETED',
@@ -364,6 +373,31 @@ func (OfdRepo) Complete(ctx context.Context, db DBTX, id int64, attempt int, doc
 			error_message=NULL, updated_at=NOW() WHERE id=$5`,
 		attempt, docNumber, sign, qr, id)
 	return err
+}
+
+// Payload собирает чек с позициями для отправки провайдеру фискализации.
+func (OfdRepo) Payload(ctx context.Context, db DBTX, receiptID int64) (model.FiscalPayload, error) {
+	var p model.FiscalPayload
+	err := db.QueryRow(ctx, `
+		SELECT id, receipt_number, receipt_type, total_amount, payment_cash, payment_card
+		FROM sales_receipt WHERE id=$1`, receiptID).
+		Scan(&p.ReceiptID, &p.Number, &p.Type, &p.Total, &p.Cash, &p.Card)
+	if err != nil {
+		return p, err
+	}
+	rows, err := db.Query(ctx, `
+		SELECT product_name, quantity, price, vat_rate FROM sales_receipt_item
+		WHERE receipt_id=$1 ORDER BY id`, receiptID)
+	if err != nil {
+		return p, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var it model.FiscalItem
+		_ = rows.Scan(&it.Name, &it.Quantity, &it.Price, &it.VATRate)
+		p.Items = append(p.Items, it)
+	}
+	return p, rows.Err()
 }
 
 // OfdSettings — чтение/патч настроек (админка).
