@@ -2,10 +2,12 @@ package model
 
 // Recipient — получатель уведомления.
 type Recipient struct {
-	UserID int64  `json:"user_id,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Email  string `json:"email,omitempty"`
-	Phone  string `json:"phone,omitempty"`
+	UserID   int64  `json:"user_id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Email    string `json:"email,omitempty"`
+	Phone    string `json:"phone,omitempty"`
+	Telegram string `json:"telegram,omitempty"`
+	Push     string `json:"push,omitempty"`
 }
 
 // InboxItem — входящее WEB-уведомление.

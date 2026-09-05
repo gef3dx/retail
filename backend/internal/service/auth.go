@@ -168,3 +168,9 @@ func (a *AuthService) Me(ctx context.Context, uid int64, roles []string) (model.
 	u.Organizations = a.Users.Orgs(ctx, a.Store.PG, uid)
 	return u, nil
 }
+
+// UpdateMe обновляет адреса уведомлений (telegram chat id, push token).
+func (a *AuthService) UpdateMe(ctx context.Context, uid int64, telegram, push *string) error {
+	a.Users.UpdateProfile(ctx, a.Store.PG, uid, telegram, push)
+	return nil
+}

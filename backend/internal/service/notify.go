@@ -105,8 +105,27 @@ func (s *NotifyService) Send(ctx context.Context, in SendInput) error {
 	if in.OrgID == 0 || in.Type == "" || len(in.Channels) == 0 {
 		return BadRequest("org_id/type/channels required")
 	}
-	s.Enqueue(ctx, in.OrgID, in.Type, in.Channels,
-		model.Recipient{UserID: in.UserID, Name: in.Name, Email: in.Email, Phone: in.Phone},
+	r := model.Recipient{UserID: in.UserID, Name: in.Name, Email: in.Email, Phone: in.Phone}
+	if r.UserID != 0 {
+		// Дотягиваем пустые контакты из профиля.
+		full := s.Queue.RecipientOf(ctx, s.Store.PG, r.UserID)
+		if r.Name == "" {
+			r.Name = full.Name
+		}
+		if r.Email == "" {
+			r.Email = full.Email
+		}
+		if r.Phone == "" {
+			r.Phone = full.Phone
+		}
+		if r.Telegram == "" {
+			r.Telegram = full.Telegram
+		}
+		if r.Push == "" {
+			r.Push = full.Push
+		}
+	}
+	s.Enqueue(ctx, in.OrgID, in.Type, in.Channels, r,
 		in.Subject, in.Body, in.Data, in.Entity, in.EntityID, 5)
 	return nil
 }

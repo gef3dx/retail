@@ -94,8 +94,8 @@ func (UserRepo) Orgs(ctx context.Context, db DBTX, userID int64) []int64 {
 func (UserRepo) Get(ctx context.Context, db DBTX, id int64) (model.User, error) {
 	var u model.User
 	err := db.QueryRow(ctx, `
-		SELECT id, username, email, first_name, last_name, is_active, created_at FROM users WHERE id=$1`, id).
-		Scan(&u.ID, &u.Username, &u.Email, &u.FirstName, &u.LastName, &u.IsActive, &u.CreatedAt)
+		SELECT id, username, email, first_name, last_name, is_active, created_at, telegram_chat_id, push_token FROM users WHERE id=$1`, id).
+		Scan(&u.ID, &u.Username, &u.Email, &u.FirstName, &u.LastName, &u.IsActive, &u.CreatedAt, &u.Telegram, &u.Push)
 	return u, err
 }
 
@@ -177,6 +177,13 @@ func (UserRepo) RotateSession(ctx context.Context, db DBTX, sessionID int64, new
 
 func (UserRepo) DeactivateByRefresh(ctx context.Context, db DBTX, hash string) {
 	_, _ = db.Exec(ctx, `UPDATE user_sessions SET is_active=FALSE WHERE refresh_hash=$1`, hash)
+}
+
+// UpdateProfile обновляет telegram/push адреса пользователя.
+func (UserRepo) UpdateProfile(ctx context.Context, db DBTX, id int64, telegram, push *string) {
+	_, _ = db.Exec(ctx, `
+		UPDATE users SET telegram_chat_id=COALESCE($2, telegram_chat_id),
+			push_token=COALESCE($3, push_token), updated_at=NOW() WHERE id=$1`, id, telegram, push)
 }
 
 func splitCSV(s string) []string {

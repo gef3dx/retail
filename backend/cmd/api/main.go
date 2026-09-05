@@ -114,6 +114,7 @@ func main() {
 	// Приватное
 	api := e.Group("/api/v1", rbac.AuthJWT(cfg.JWTSecret, st))
 	api.GET("/me", authH.Me)
+	api.PATCH("/me", authH.PatchMe)
 	api.GET("/roles", orgsH.Roles)
 	api.GET("/organizations", orgsH.List, rbac.RequirePermission("organization:read"))
 	api.POST("/organizations", orgsH.Create, rbac.RequirePermission("organization:create"))
