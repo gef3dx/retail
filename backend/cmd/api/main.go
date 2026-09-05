@@ -14,6 +14,7 @@ import (
 	"retail-backend/internal/config"
 	"retail-backend/internal/gismt"
 	"retail-backend/internal/handler"
+	"retail-backend/internal/notify"
 	"retail-backend/internal/ofd"
 	rbac "retail-backend/internal/middleware"
 	"retail-backend/internal/store"
@@ -54,6 +55,7 @@ func main() {
 	catH := &handler.Catalog{Store: st}
 	recH := &handler.Receipt{Store: st}
 	markH := &handler.Marking{Store: st}
+	notifyH := &handler.Notify{Store: st}
 	stockH := &handler.Stock{Store: st}
 
 	// Фоновый воркер ОФД (mock). Интервал через env, по умолчанию 2с для живости кассы.
@@ -67,6 +69,7 @@ func main() {
 	defer stopOfd()
 	go ofd.Worker(ofdCtx, st, ofdEvery)
 	go gismt.Worker(ofdCtx, st, ofdEvery)
+	go notify.Worker(ofdCtx, st, ofdEvery)
 
 	// Публичное
 	e.POST("/api/v1/auth/register", authH.Register)
@@ -138,6 +141,18 @@ func main() {
 	api.POST("/orders/:id/cancel", stockH.CancelOrder, rbac.RequirePermission("document:update"))
 	api.POST("/shipments", stockH.CreateShipment, rbac.RequirePermission("document:post"))
 	api.GET("/shipments", stockH.ListShipments, rbac.RequirePermission("document:read"))
+
+	// Уведомления (этап 7)
+	api.GET("/notify/inbox", notifyH.Inbox)
+	api.POST("/notify/inbox/:id/viewed", notifyH.MarkViewed)
+	api.GET("/notify/queue", notifyH.Queue, rbac.RequirePermission("report:view"))
+	api.GET("/notify/templates", notifyH.Templates, rbac.RequirePermission("report:view"))
+	api.POST("/notify/templates", notifyH.UpsertTemplate, rbac.RequirePermission("organization:update"))
+	api.GET("/notify/preferences", notifyH.Preferences)
+	api.PUT("/notify/preferences", notifyH.SetPreference)
+	api.POST("/notify/send", notifyH.Send, rbac.RequirePermission("document:create"))
+	api.GET("/notify/settings", notifyH.GetSettings, rbac.RequirePermission("organization:read"))
+	api.PATCH("/notify/settings", notifyH.PatchSettings, rbac.RequirePermission("organization:update"))
 
 	slog.Info("backend starting", "port", cfg.Port, "env", cfg.Env)
 

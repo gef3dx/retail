@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"retail-backend/internal/middleware"
 	"retail-backend/internal/model"
+	"retail-backend/internal/notify"
 	"retail-backend/internal/store"
 )
 
@@ -53,6 +54,7 @@ func (h *Orgs) Create(c echo.Context) error {
 		return c.JSON(http.StatusConflict, map[string]string{"error": "duplicate inn"})
 	}
 	EnsurePriceTypesForOrg(h.Store, c, id)
+	notify.EnsureSettings(c.Request().Context(), h.Store, id)
 	EnsureGismtForOrg(h.Store, c, id)
 	x := middleware.CtxOf(c)
 	h.Store.Audit(c.Request().Context(), &x.UserID, "org.create", "Создание организации", "organization", &id, r, clientIP(c), c.Request().UserAgent(), true, "")
