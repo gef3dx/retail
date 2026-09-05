@@ -14,6 +14,7 @@ import { Marking } from './pages/Marking';
 import { Stock } from './pages/Stock';
 import { Orders } from './pages/Orders';
 import { Notify } from './pages/Notify';
+import { Integrations } from './pages/Integrations';
 import { Services } from './pages/Services';
 import { Bookings } from './pages/Bookings';
 import { useAuth } from './store';
@@ -44,6 +45,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/stock" element={<Guard><Stock /></Guard>} />
           <Route path="/orders" element={<Guard><Orders /></Guard>} />
           <Route path="/notify" element={<Guard><Notify /></Guard>} />
+          <Route path="/integrations" element={<Guard><Integrations /></Guard>} />
           <Route path="/services" element={<Guard><Services /></Guard>} />
           <Route path="/bookings" element={<Guard><Bookings /></Guard>} />
           <Route path="*" element={<Navigate to="/me" replace />} />
