@@ -18,6 +18,7 @@ import (
 	rbac "retail-backend/internal/middleware"
 	"retail-backend/internal/notify"
 	"retail-backend/internal/ofd"
+	"retail-backend/internal/provider"
 	"retail-backend/internal/repository"
 	"retail-backend/internal/service"
 	"retail-backend/internal/store"
@@ -76,6 +77,9 @@ func main() {
 		Store: st, Counterparties: repository.CounterpartyRepo{}, Warehouses: repository.WarehouseRepo{},
 		Docs: repository.StockDocRepo{}, Orders: repository.OrderRepo{}, Shipments: repository.ShipmentRepo{},
 		Products: repository.ProductRepo{}, Balance: repository.BalanceRepo{}, Notify: repository.NotifyRepo{},
+	}}
+	intH := &handler.Integrations{Svc: &service.IntegrationService{
+		Store: st, Regs: repository.IntegrationRepo{}, Reg: provider.DefaultRegistry(),
 	}}
 	bookH := &handler.Booking{Svc: &service.BookingService{
 		Store: st, Resources: repository.ResourceRepo{}, Bookings: repository.BookingRepo{}, Notify: repository.NotifyRepo{},
@@ -186,6 +190,12 @@ func main() {
 	api.POST("/bookings/:id/link-receipt", bookH.LinkReceipt, rbac.RequirePermission("document:update"))
 	api.POST("/products/:id/resources", bookH.LinkProductResource, rbac.RequirePermission("product:update"))
 	api.GET("/products/:id/resources", bookH.ListProductResources, rbac.RequirePermission("product:read"))
+
+	// Интеграции: провайдеры и ключи (этап 10)
+	api.GET("/integrations", intH.List, rbac.RequirePermission("organization:read"))
+	api.PUT("/integrations/:code", intH.Save, rbac.RequirePermission("organization:update"))
+	api.DELETE("/integrations/:code", intH.Clear, rbac.RequirePermission("organization:update"))
+	api.POST("/integrations/:code/test", intH.Test, rbac.RequirePermission("organization:read"))
 
 	// Уведомления (этап 7)
 	api.GET("/notify/inbox", notifyH.Inbox)
