@@ -60,6 +60,7 @@ export function Me() {
         <Link className="px-4 py-2 border rounded" to="/integrations">Интеграции</Link>
         <Link className="px-4 py-2 border rounded" to="/services">Услуги</Link>
         <Link className="px-4 py-2 border rounded" to="/bookings">Брони</Link>
+        <Link className="px-4 py-2 border rounded" to="/delivery">Доставка</Link>
         <button
           className="px-4 py-2 bg-slate-900 text-white rounded"
           onClick={() => {
