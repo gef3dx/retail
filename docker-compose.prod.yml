@@ -1,0 +1,119 @@
+# Production compose: образы backend/frontend собираются локально,
+# миграции — init-контейнером, наружу торчит только nginx (80/443).
+# Переменные — из .env (см. .env.example). TLS-файлы: ./deploy/tls/.
+
+services:
+  pg:
+    image: postgres:14-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-retail}
+      POSTGRES_USER: ${POSTGRES_USER:-retail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-retail} -d ${POSTGRES_DB:-retail}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: ./backend
+    depends_on:
+      pg:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-retail}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@pg:5432/${POSTGRES_DB:-retail}?sslmode=disable
+    entrypoint: ["/app/migrate"]
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      pg:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      APP_ENV: production
+      BACKEND_PORT: 8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-retail}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@pg:5432/${POSTGRES_DB:-retail}?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (min 32 chars)}
+      SETTINGS_ENC_KEY: ${SETTINGS_ENC_KEY:?set SETTINGS_ENC_KEY}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@example.com}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD}
+    expose:
+      - "8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api/v1
+    restart: unless-stopped
+    depends_on:
+      - backend
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/tls:/etc/nginx/tls:ro
+      - ./deploy/certbot-www:/var/www/certbot
+
+  # Prometheus + Grafana — профиль monitoring:
+  #   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile monitoring up -d
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    restart: unless-stopped
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    profiles: ["monitoring"]
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD for monitoring profile}
+    volumes:
+      - ./deploy/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prom.yml:ro
+      - ./deploy/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/rms.json:ro
+      - ./deploy/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    profiles: ["monitoring"]
+
+volumes:
+  pgdata:
+  redisdata:
+  promdata:
+  grafanadata:
