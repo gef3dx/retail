@@ -9,10 +9,11 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache-dependency-path: backend/go.sum
       - run: gofmt -l ./... | tee /tmp/fmt.out && test ! -s /tmp/fmt.out
         working-directory: backend
       - run: go vet ./...
@@ -23,10 +24,10 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --no-audit --no-fund
@@ -49,10 +50,11 @@ jobs:
           --health-cmd "pg_isready -U retail -d retail"
           --health-interval 5s --health-timeout 3s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache-dependency-path: backend/go.sum
       - run: go run ./migrations
         working-directory: backend
         env:
@@ -81,10 +83,11 @@ jobs:
         image: redis:7-alpine
         ports: ['6379:6379']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache-dependency-path: backend/go.sum
       - run: go run ./migrations
         working-directory: backend
         env:
