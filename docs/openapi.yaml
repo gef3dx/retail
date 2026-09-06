@@ -1,0 +1,2467 @@
+openapi: 3.0.3
+info:
+  title: Retail Management System API
+  version: 1.0.0
+  description: "REST API RMS. Авторизация: Bearer JWT. Требуется право из x-permission."
+servers:
+  - url: http://localhost:8080/api/v1
+tags:
+  - name: auth
+    description: Аутентификация
+  - name: users
+    description: Пользователи и организации
+  - name: catalog
+    description: Каталог
+  - name: cash
+    description: Касса и ОФД
+  - name: marking
+    description: Маркировка
+  - name: stock
+    description: Склад и заказы
+  - name: booking
+    description: Услуги и бронирование
+  - name: delivery
+    description: Доставка
+  - name: market
+    description: Маркетплейсы
+  - name: egais
+    description: ЕГАИС
+  - name: tax
+    description: Налоги и отчёты
+  - name: integrations
+    description: Интеграции
+  - name: notify
+    description: Уведомления
+  - name: system
+    description: Системные
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Регистрация организации
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Вход
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Обновление токенов
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Выход
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /me:
+    get:
+      tags: [users]
+      summary: Текущий пользователь
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    patch:
+      tags: [users]
+      summary: Обновить профиль
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /roles:
+    get:
+      tags: [users]
+      summary: Roles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /organizations:
+    get:
+      tags: [users]
+      summary: List
+      x-permission: organization:read
+      description: Требуется право `organization:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [users]
+      summary: Create
+      x-permission: organization:create
+      description: Требуется право `organization:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /users:
+    get:
+      tags: [users]
+      summary: List
+      x-permission: user:read
+      description: Требуется право `user:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [users]
+      summary: Create
+      x-permission: user:create
+      description: Требуется право `user:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /users/{id}/roles:
+    post:
+      tags: [users]
+      summary: AssignRole
+      x-permission: user:role
+      description: Требуется право `user:role`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /audit:
+    get:
+      tags: [users]
+      summary: Audit
+      x-permission: user:read
+      description: Требуется право `user:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /categories:
+    get:
+      tags: [catalog]
+      summary: ListCategories
+      x-permission: product:read
+      description: Требуется право `product:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [catalog]
+      summary: CreateCategory
+      x-permission: product:create
+      description: Требуется право `product:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /brands:
+    get:
+      tags: [catalog]
+      summary: ListBrands
+      x-permission: product:read
+      description: Требуется право `product:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [catalog]
+      summary: CreateBrand
+      x-permission: product:create
+      description: Требуется право `product:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /products:
+    get:
+      tags: [catalog]
+      summary: ListProducts
+      x-permission: product:read
+      description: Требуется право `product:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [catalog]
+      summary: CreateProduct
+      x-permission: product:create
+      description: Требуется право `product:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /products/by-code/{code}:
+    get:
+      tags: [catalog]
+      summary: ByCode
+      x-permission: product:read
+      description: Требуется право `product:read`.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /products/{id}:
+    patch:
+      tags: [catalog]
+      summary: UpdateProduct
+      x-permission: product:update
+      description: Требуется право `product:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    delete:
+      tags: [catalog]
+      summary: DeleteProduct
+      x-permission: product:delete
+      description: Требуется право `product:delete`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /products/{id}/prices:
+    get:
+      tags: [catalog]
+      summary: ListPrices
+      x-permission: product:read
+      description: Требуется право `product:read`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [catalog]
+      summary: AddPrice
+      x-permission: product:update
+      description: Требуется право `product:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /price-types:
+    get:
+      tags: [catalog]
+      summary: ListPriceTypes
+      x-permission: product:read
+      description: Требуется право `product:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /registers:
+    get:
+      tags: [cash]
+      summary: ListRegisters
+      x-permission: organization:read
+      description: Требуется право `organization:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [cash]
+      summary: CreateRegister
+      x-permission: organization:update
+      description: Требуется право `organization:update`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /registers/{id}:
+    patch:
+      tags: [cash]
+      summary: PatchRegister
+      x-permission: organization:update
+      description: Требуется право `organization:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /shifts/open:
+    post:
+      tags: [cash]
+      summary: OpenShift
+      x-permission: receipt:create
+      description: Требуется право `receipt:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      tags: [cash]
+      summary: OpenShiftForRegister
+      x-permission: receipt:read
+      description: Требуется право `receipt:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /shifts/{id}/report:
+    get:
+      tags: [cash]
+      summary: XReport
+      x-permission: receipt:read
+      description: Требуется право `receipt:read`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /shifts/{id}/close:
+    post:
+      tags: [cash]
+      summary: CloseShift
+      x-permission: receipt:create
+      description: Требуется право `receipt:create`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /receipts/sell:
+    post:
+      tags: [cash]
+      summary: Sell
+      x-permission: receipt:create
+      description: Требуется право `receipt:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /receipts/return:
+    post:
+      tags: [cash]
+      summary: Return
+      x-permission: receipt:return
+      description: Требуется право `receipt:return`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /receipts/correction:
+    post:
+      tags: [cash]
+      summary: Correction
+      x-permission: receipt:create
+      description: Требуется право `receipt:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /receipts:
+    get:
+      tags: [cash]
+      summary: ListReceipts
+      x-permission: receipt:read
+      description: Требуется право `receipt:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /registers/{id}/test-fiscal:
+    post:
+      tags: [cash]
+      summary: TestFiscal
+      x-permission: receipt:create
+      description: Требуется право `receipt:create`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /ofd-active:
+    get:
+      tags: [cash]
+      summary: ActiveProvider
+      x-permission: receipt:read
+      description: Требуется право `receipt:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /ofd-settings:
+    get:
+      tags: [cash]
+      summary: GetOfdSettings
+      x-permission: organization:read
+      description: Требуется право `organization:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    patch:
+      tags: [cash]
+      summary: PatchOfdSettings
+      x-permission: organization:update
+      description: Требуется право `organization:update`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /marking/codes:
+    post:
+      tags: [auth]
+      summary: Регистрация организации
+      x-permission: marking:manage
+      description: Требуется право `marking:manage`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      tags: [marking]
+      summary: List
+      x-permission: marking:view
+      description: Требуется право `marking:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /marking/check/{code}:
+    get:
+      tags: [marking]
+      summary: Check
+      x-permission: marking:view
+      description: Требуется право `marking:view`.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /marking/write-off:
+    post:
+      tags: [marking]
+      summary: WriteOff
+      x-permission: marking:manage
+      description: Требуется право `marking:manage`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /marking/queue:
+    get:
+      tags: [marking]
+      summary: Queue
+      x-permission: marking:view
+      description: Требуется право `marking:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /integrations/log:
+    get:
+      tags: [integrations]
+      summary: Log
+      x-permission: marking:view
+      description: Требуется право `marking:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /gismt-settings:
+    get:
+      tags: [marking]
+      summary: GetSettings
+      x-permission: organization:read
+      description: Требуется право `organization:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    patch:
+      tags: [marking]
+      summary: PatchSettings
+      x-permission: organization:update
+      description: Требуется право `organization:update`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /gismt-active:
+    get:
+      tags: [marking]
+      summary: ActiveProvider
+      x-permission: marking:view
+      description: Требуется право `marking:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /counterparties:
+    get:
+      tags: [stock]
+      summary: ListCounterparties
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [stock]
+      summary: CreateCounterparty
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /warehouses:
+    get:
+      tags: [stock]
+      summary: ListWarehouses
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [stock]
+      summary: CreateWarehouse
+      x-permission: organization:update
+      description: Требуется право `organization:update`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /stock/balances:
+    get:
+      tags: [stock]
+      summary: Balances
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /stock/receipts:
+    post:
+      tags: [cash]
+      summary: CreateReceiptDoc
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      tags: [cash]
+      summary: ListReceiptDocs
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /stock/receipts/{id}/post:
+    post:
+      tags: [cash]
+      summary: PostReceiptDoc
+      x-permission: document:post
+      description: Требуется право `document:post`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /orders:
+    post:
+      tags: [stock]
+      summary: CreateOrder
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      tags: [stock]
+      summary: ListOrders
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /orders/{id}:
+    get:
+      tags: [stock]
+      summary: GetOrder
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /orders/{id}/confirm:
+    post:
+      tags: [stock]
+      summary: ConfirmOrder
+      x-permission: document:post
+      description: Требуется право `document:post`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /orders/{id}/cancel:
+    post:
+      tags: [stock]
+      summary: CancelOrder
+      x-permission: document:update
+      description: Требуется право `document:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /shipments:
+    post:
+      tags: [stock]
+      summary: CreateShipment
+      x-permission: document:post
+      description: Требуется право `document:post`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      tags: [stock]
+      summary: ListShipments
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /resources:
+    get:
+      tags: [booking]
+      summary: ListResources
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [booking]
+      summary: CreateResource
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /resources/{id}/schedule:
+    get:
+      tags: [booking]
+      summary: GetSchedule
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    put:
+      tags: [booking]
+      summary: PutSchedule
+      x-permission: document:update
+      description: Требуется право `document:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /resources/{id}/exceptions:
+    post:
+      tags: [booking]
+      summary: AddException
+      x-permission: document:update
+      description: Требуется право `document:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /resources/{id}/slots:
+    get:
+      tags: [booking]
+      summary: Slots
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /bookings:
+    post:
+      tags: [booking]
+      summary: Create
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      tags: [booking]
+      summary: List
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /bookings/{id}:
+    get:
+      tags: [booking]
+      summary: Get
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /bookings/{id}/status:
+    post:
+      tags: [booking]
+      summary: SetStatus
+      x-permission: document:update
+      description: Требуется право `document:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /bookings/{id}/link-receipt:
+    post:
+      tags: [cash]
+      summary: LinkReceipt
+      x-permission: document:update
+      description: Требуется право `document:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /products/{id}/resources:
+    post:
+      tags: [booking]
+      summary: LinkProductResource
+      x-permission: product:update
+      description: Требуется право `product:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      tags: [booking]
+      summary: ListProductResources
+      x-permission: product:read
+      description: Требуется право `product:read`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /delivery/zones:
+    get:
+      tags: [delivery]
+      summary: ListZones
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [delivery]
+      summary: CreateZone
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /delivery/couriers:
+    get:
+      tags: [delivery]
+      summary: ListCouriers
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [delivery]
+      summary: CreateCourier
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /delivery/couriers/{id}/schedule:
+    post:
+      tags: [delivery]
+      summary: SetCourierSchedule
+      x-permission: document:update
+      description: Требуется право `document:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /deliveries:
+    post:
+      tags: [delivery]
+      summary: Create
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      tags: [delivery]
+      summary: List
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /deliveries/{id}:
+    get:
+      tags: [delivery]
+      summary: Get
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /deliveries/{id}/assign:
+    post:
+      tags: [delivery]
+      summary: Assign
+      x-permission: document:update
+      description: Требуется право `document:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /deliveries/{id}/accept:
+    post:
+      tags: [delivery]
+      summary: Accept
+      x-permission: document:update
+      description: Требуется право `document:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /deliveries/{id}/status:
+    post:
+      tags: [delivery]
+      summary: SetStatus
+      x-permission: document:update
+      description: Требуется право `document:update`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /market/providers:
+    get:
+      tags: [market]
+      summary: Providers
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /market/offers:
+    get:
+      tags: [market]
+      summary: ListOffers
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [market]
+      summary: CreateOffer
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /market/offers/{id}:
+    delete:
+      tags: [market]
+      summary: DeleteOffer
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /market/{code}/pull-orders:
+    post:
+      tags: [stock]
+      summary: PullOrders
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /market/{code}/push-stocks:
+    post:
+      tags: [stock]
+      summary: PushStocks
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /market/orders:
+    get:
+      tags: [stock]
+      summary: ListOrders
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /market/sync-log:
+    get:
+      tags: [market]
+      summary: ListSyncLog
+      x-permission: document:read
+      description: Требуется право `document:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /egais/status:
+    get:
+      tags: [egais]
+      summary: Status
+      x-permission: alcohol:view
+      description: Требуется право `alcohol:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /egais/documents:
+    post:
+      tags: [egais]
+      summary: CreateDoc
+      x-permission: alcohol:manage
+      description: Требуется право `alcohol:manage`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      tags: [egais]
+      summary: ListDocs
+      x-permission: alcohol:view
+      description: Требуется право `alcohol:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /tax/sales-book:
+    get:
+      tags: [tax]
+      summary: SalesBook
+      x-permission: report:view
+      description: Требуется право `report:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /tax/purchase-book:
+    get:
+      tags: [tax]
+      summary: PurchaseBook
+      x-permission: report:view
+      description: Требуется право `report:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /tax/close:
+    post:
+      tags: [tax]
+      summary: Close
+      x-permission: report:export
+      description: Требуется право `report:export`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /tax/declarations:
+    get:
+      tags: [tax]
+      summary: Declarations
+      x-permission: report:view
+      description: Требуется право `report:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /tax/declarations/{id}/submit:
+    post:
+      tags: [tax]
+      summary: Submit
+      x-permission: report:export
+      description: Требуется право `report:export`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /tax/export/{book}:
+    get:
+      tags: [tax]
+      summary: Export
+      x-permission: report:export
+      description: Требуется право `report:export`.
+      parameters:
+        - in: path
+          name: book
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /tax/summary:
+    get:
+      tags: [tax]
+      summary: Summary
+      x-permission: report:view
+      description: Требуется право `report:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /integrations:
+    get:
+      tags: [integrations]
+      summary: List
+      x-permission: organization:read
+      description: Требуется право `organization:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /integrations/{code}:
+    put:
+      tags: [integrations]
+      summary: Save
+      x-permission: organization:update
+      description: Требуется право `organization:update`.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    delete:
+      tags: [integrations]
+      summary: Clear
+      x-permission: organization:update
+      description: Требуется право `organization:update`.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /integrations/{code}/test:
+    post:
+      tags: [integrations]
+      summary: Test
+      x-permission: organization:read
+      description: Требуется право `organization:read`.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /notify/inbox:
+    get:
+      tags: [notify]
+      summary: Inbox
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /notify/inbox/{id}/viewed:
+    post:
+      tags: [notify]
+      summary: MarkViewed
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /notify/queue:
+    get:
+      tags: [notify]
+      summary: Queue
+      x-permission: report:view
+      description: Требуется право `report:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /notify/templates:
+    get:
+      tags: [notify]
+      summary: Templates
+      x-permission: report:view
+      description: Требуется право `report:view`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      tags: [notify]
+      summary: UpsertTemplate
+      x-permission: organization:update
+      description: Требуется право `organization:update`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /notify/preferences:
+    get:
+      tags: [notify]
+      summary: Preferences
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    put:
+      tags: [notify]
+      summary: SetPreference
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /notify/send:
+    post:
+      tags: [notify]
+      summary: Send
+      x-permission: document:create
+      description: Требуется право `document:create`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /notify/settings:
+    get:
+      tags: [notify]
+      summary: GetSettings
+      x-permission: organization:read
+      description: Требуется право `organization:read`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    patch:
+      tags: [notify]
+      summary: PatchSettings
+      x-permission: organization:update
+      description: Требуется право `organization:update`.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object}
+        '4XX':
+          description: Ошибка
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: {type: string}
+security:
+  - bearerAuth: []

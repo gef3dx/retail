@@ -15,6 +15,7 @@ import (
 	"retail-backend/internal/config"
 	"retail-backend/internal/gismt"
 	"retail-backend/internal/handler"
+	"retail-backend/internal/metrics"
 	rbac "retail-backend/internal/middleware"
 	"retail-backend/internal/notify"
 	"retail-backend/internal/ofd"
@@ -48,8 +49,12 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 	e.Use(middleware.RequestID())
+	e.Use(metrics.Middleware)
 
 	handler.Health(e, st)
+	e.GET("/metrics", func(c echo.Context) error {
+		return c.String(200, metrics.Default.Render())
+	})
 
 	authH := &handler.Auth{Svc: &service.AuthService{
 		Store: st, Users: repository.UserRepo{}, Orgs: repository.OrgRepo{}, Audit: repository.AuditRepo{},

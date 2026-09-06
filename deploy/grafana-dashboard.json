@@ -1,0 +1,44 @@
+{
+  "title": "RMS Backend",
+  "uid": "rms-backend",
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "RPS по роутам",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (route) (rate(rms_http_requests_total[5m]))",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "title": "Ошибки 5xx",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(rate(rms_http_requests_total{code=~\"5..\"}[5m]))"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
+    },
+    {
+      "id": 3,
+      "title": "p95 длительности по роутам",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (route, le) (rate(rms_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

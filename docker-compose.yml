@@ -34,5 +34,16 @@ services:
       timeout: 3s
       retries: 10
 
+  # Swagger UI для docs/openapi.yaml: make swagger
+  swagger:
+    image: swaggerapi/swagger-ui:v5.17.0
+    environment:
+      SWAGGER_JSON: /docs/openapi.yaml
+    volumes:
+      - ./docs/openapi.yaml:/docs/openapi.yaml:ro
+    ports:
+      - "${SWAGGER_PORT:-8081}:8080"
+    profiles: ["docs"]
+
 volumes:
   pgdata:
