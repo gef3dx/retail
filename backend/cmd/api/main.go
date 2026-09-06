@@ -83,6 +83,14 @@ func main() {
 	intH := &handler.Integrations{Svc: &service.IntegrationService{
 		Store: st, Regs: repository.IntegrationRepo{}, Reg: provider.DefaultRegistry(),
 	}}
+	mktH := &handler.Market{Svc: &service.MarketService{
+		Store: st, Reg: provider.DefaultRegistry(), IntRepo: repository.IntegrationRepo{},
+		Offers: repository.OfferRepo{}, Orders: repository.MarketOrderRepo{},
+		Sync: repository.SyncLogRepo{}, Products: repository.ProductRepo{},
+	}}
+	egH := &handler.Egais{Svc: &service.EgaisService{
+		Store: st, Docs: repository.EgaisRepo{}, Int: repository.IntegrationRepo{},
+	}}
 	delH := &handler.Delivery{Svc: &service.DeliveryService{
 		Store: st, Reg: provider.DefaultRegistry(), IntRepo: repository.IntegrationRepo{},
 		Zones: repository.ZoneRepo{}, Couriers: repository.CourierRepo{},
@@ -216,6 +224,21 @@ func main() {
 	api.POST("/deliveries/:id/assign", delH.Assign, rbac.RequirePermission("document:update"))
 	api.POST("/deliveries/:id/accept", delH.Accept, rbac.RequirePermission("document:update"))
 	api.POST("/deliveries/:id/status", delH.SetStatus, rbac.RequirePermission("document:update"))
+
+	// Маркетплейсы (этап 15)
+	api.GET("/market/providers", mktH.Providers, rbac.RequirePermission("document:read"))
+	api.GET("/market/offers", mktH.ListOffers, rbac.RequirePermission("document:read"))
+	api.POST("/market/offers", mktH.CreateOffer, rbac.RequirePermission("document:create"))
+	api.DELETE("/market/offers/:id", mktH.DeleteOffer, rbac.RequirePermission("document:create"))
+	api.POST("/market/:code/pull-orders", mktH.PullOrders, rbac.RequirePermission("document:create"))
+	api.POST("/market/:code/push-stocks", mktH.PushStocks, rbac.RequirePermission("document:create"))
+	api.GET("/market/orders", mktH.ListOrders, rbac.RequirePermission("document:read"))
+	api.GET("/market/sync-log", mktH.ListSyncLog, rbac.RequirePermission("document:read"))
+
+	// ЕГАИС (этап 15)
+	api.GET("/egais/status", egH.Status, rbac.RequirePermission("alcohol:view"))
+	api.POST("/egais/documents", egH.CreateDoc, rbac.RequirePermission("alcohol:manage"))
+	api.GET("/egais/documents", egH.ListDocs, rbac.RequirePermission("alcohol:view"))
 
 	// Интеграции: провайдеры и ключи (этап 10)
 	api.GET("/integrations", intH.List, rbac.RequirePermission("organization:read"))
