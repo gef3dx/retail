@@ -88,6 +88,7 @@ func main() {
 		Offers: repository.OfferRepo{}, Orders: repository.MarketOrderRepo{},
 		Sync: repository.SyncLogRepo{}, Products: repository.ProductRepo{},
 	}}
+	taxH := &handler.Tax{Svc: &service.TaxService{Store: st, Tax: repository.TaxRepo{}}}
 	egH := &handler.Egais{Svc: &service.EgaisService{
 		Store: st, Docs: repository.EgaisRepo{}, Int: repository.IntegrationRepo{},
 	}}
@@ -239,6 +240,15 @@ func main() {
 	api.GET("/egais/status", egH.Status, rbac.RequirePermission("alcohol:view"))
 	api.POST("/egais/documents", egH.CreateDoc, rbac.RequirePermission("alcohol:manage"))
 	api.GET("/egais/documents", egH.ListDocs, rbac.RequirePermission("alcohol:view"))
+
+	// Налоги и отчёты (этап 16)
+	api.GET("/tax/sales-book", taxH.SalesBook, rbac.RequirePermission("report:view"))
+	api.GET("/tax/purchase-book", taxH.PurchaseBook, rbac.RequirePermission("report:view"))
+	api.POST("/tax/close", taxH.Close, rbac.RequirePermission("report:export"))
+	api.GET("/tax/declarations", taxH.Declarations, rbac.RequirePermission("report:view"))
+	api.POST("/tax/declarations/:id/submit", taxH.Submit, rbac.RequirePermission("report:export"))
+	api.GET("/tax/export/:book", taxH.Export, rbac.RequirePermission("report:export"))
+	api.GET("/tax/summary", taxH.Summary, rbac.RequirePermission("report:view"))
 
 	// Интеграции: провайдеры и ключи (этап 10)
 	api.GET("/integrations", intH.List, rbac.RequirePermission("organization:read"))
