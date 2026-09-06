@@ -92,14 +92,18 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: postgres://retail:retail@localhost:5432/retail?sslmode=disable
+      - run: go build -o /tmp/api ./cmd/api
+        working-directory: backend
       - run: |
           DATABASE_URL=postgres://retail:retail@localhost:5432/retail?sslmode=disable \
           REDIS_ADDR=localhost:6379 BACKEND_PORT=18080 \
           JWT_SECRET=ci-secret-min-32-chars-0123456789 \
-          go run ./cmd/api & echo $! > /tmp/api.pid
-          sleep 12
+          /tmp/api & echo $! > /tmp/api.pid
+          trap 'kill $(cat /tmp/api.pid)' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS localhost:18080/readyz && break
+            sleep 1
+          done
           curl -fsS localhost:18080/healthz
-          curl -fsS localhost:18080/readyz
           curl -fsS localhost:18080/metrics | grep -q rms_http_requests_total
-          kill $(cat /tmp/api.pid)
         working-directory: backend
