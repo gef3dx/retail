@@ -20,6 +20,7 @@ import { Bookings } from './pages/Bookings';
 import { Delivery } from './pages/Delivery';
 import { Marketplaces } from './pages/Marketplaces';
 import { Egais } from './pages/Egais';
+import { Reports } from './pages/Reports';
 import { useAuth } from './store';
 import './index.css';
 
@@ -54,6 +55,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/delivery" element={<Guard><Delivery /></Guard>} />
           <Route path="/marketplaces" element={<Guard><Marketplaces /></Guard>} />
           <Route path="/egais" element={<Guard><Egais /></Guard>} />
+          <Route path="/reports" element={<Guard><Reports /></Guard>} />
           <Route path="*" element={<Navigate to="/me" replace />} />
         </Routes>
       </BrowserRouter>
