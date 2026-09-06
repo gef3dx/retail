@@ -17,7 +17,7 @@
 
 # Dependency directories
 vendor/
-go.sum
+# NOTE: go.sum НЕ игнорируем — он обязан быть в git для воспроизводимых сборок и CI.
 
 # Go workspace file
 go.work
